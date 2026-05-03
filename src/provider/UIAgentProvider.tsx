@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useStore } from "zustand";
 import { createPortal } from "react-dom";
 import { createAgentStore } from "./store";
@@ -6,6 +6,7 @@ import type { AgentStore } from "./store";
 import { AgentStoreContext, AgentConnectionContext } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
+import { loadOverrides } from "../persistence/client";
 
 /**
  * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses
@@ -67,6 +68,30 @@ export function UIAgentProvider({
     });
     return store;
   }, [store]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const connection = {
+      ...(publishableKey !== undefined && { publishableKey }),
+      ...(userToken !== undefined && { userToken }),
+      ...(apiUrl !== undefined && { apiUrl }),
+    };
+    loadOverrides(connection)
+      .then((snapshot) => {
+        if (cancelled || !snapshot) return;
+        // Defer one tick so initial Modifiables can register before we filter against the registry.
+        queueMicrotask(() => {
+          if (cancelled) return;
+          patchedStore.getState().hydrate(snapshot);
+        });
+      })
+      .catch((err) => {
+        console.warn("[Faraday] Failed to load saved overrides:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publishableKey, userToken, apiUrl, patchedStore]);
 
   return (
     <AgentConnectionContext.Provider value={{

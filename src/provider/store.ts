@@ -61,6 +61,14 @@ export interface AgentState {
   appendMessage: (message: ChatMessage) => void;
   appendToLastMessage: (delta: string) => void;
   setLastMessageStreaming: (streaming: boolean) => void;
+  getPersistableState: () => {
+    overrides: Record<string, Override>;
+    insertedComponents: Record<string, InsertedComponent[]>;
+  };
+  hydrate: (snapshot: {
+    overrides: Record<string, Override>;
+    insertedComponents: Record<string, InsertedComponent[]>;
+  }) => void;
 }
 
 export type AgentStore = ReturnType<typeof createAgentStore>;
@@ -321,6 +329,26 @@ export function createAgentStore(
         messages[messages.length - 1] = { ...last, streaming };
         return { messages };
       });
+    },
+
+    getPersistableState() {
+      const { overrides, insertedComponents } = get();
+      return { overrides, insertedComponents };
+    },
+
+    hydrate(snapshot) {
+      const { registry } = get();
+      const overrides: Record<string, Override> = {};
+      for (const [id, value] of Object.entries(snapshot.overrides ?? {})) {
+        if (id in registry) overrides[id] = value;
+      }
+      const insertedComponents: Record<string, InsertedComponent[]> = {};
+      for (const [containerId, list] of Object.entries(
+        snapshot.insertedComponents ?? {},
+      )) {
+        if (containerId in registry) insertedComponents[containerId] = list;
+      }
+      set({ overrides, insertedComponents, history: [] });
     },
   }));
 }

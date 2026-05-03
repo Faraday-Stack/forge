@@ -8,8 +8,11 @@ import {
 import { useStore } from "zustand";
 import { useAgentStore, useAgentConnection } from "../provider/context";
 import { streamAgentResponse } from "../streaming/client";
+import { saveOverrides } from "../persistence/client";
 import { VoiceInput } from "./VoiceInput";
 import styles from "./widget.module.css";
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface ChatPanelProps {
   onClose: () => void;
@@ -19,8 +22,12 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const store = useAgentStore();
   const connection = useAgentConnection();
   const messages = useStore(store, (s) => s.messages);
+  const overrides = useStore(store, (s) => s.overrides);
+  const insertedComponents = useStore(store, (s) => s.insertedComponents);
 
   const [input, setInput] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -62,6 +69,26 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     [input, send],
   );
 
+  const hasChanges =
+    Object.keys(overrides).length > 0 ||
+    Object.keys(insertedComponents).some(
+      (k) => (insertedComponents[k]?.length ?? 0) > 0,
+    );
+
+  const onSave = useCallback(async () => {
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      await saveOverrides(connection, store.getState().getPersistableState());
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (err) {
+      setSaveStatus("error");
+      setSaveError(err instanceof Error ? err.message : String(err));
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }
+  }, [connection, store]);
+
   const onVoiceTranscript = useCallback((transcript: string) => {
     setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
     textareaRef.current?.focus();
@@ -82,6 +109,27 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     <div className={styles.panel} role="dialog" aria-label="Faraday UI Agent">
       <div className={styles.panelHeader}>
         <span className={styles.panelTitle}>UI Agent</span>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={`${styles.saveBtn} ${
+              saveStatus === "saved" ? styles.saveBtnSaved : ""
+            } ${saveStatus === "error" ? styles.saveBtnError : ""}`}
+            onClick={onSave}
+            disabled={
+              saveStatus === "saving" ||
+              (saveStatus === "idle" && !hasChanges)
+            }
+            title={saveError ?? undefined}
+          >
+            {saveStatus === "saving"
+              ? "Saving…"
+              : saveStatus === "saved"
+                ? "Saved ✓"
+                : saveStatus === "error"
+                  ? "Error"
+                  : "Save"}
+          </button>
         <button
           type="button"
           className={styles.closeBtn}
@@ -100,6 +148,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
+        </div>
       </div>
 
       <div ref={messagesRef} className={styles.messages} role="log" aria-live="polite">
