@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useStore } from "zustand";
-import { useAgentStore, useEndpoint } from "../provider/context";
+import { useAgentStore, useAgentConnection } from "../provider/context";
 import { streamAgentResponse } from "../streaming/client";
 import { VoiceInput } from "./VoiceInput";
 import styles from "./widget.module.css";
@@ -17,7 +17,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ onClose }: ChatPanelProps) {
   const store = useAgentStore();
-  const endpoint = useEndpoint();
+  const connection = useAgentConnection();
   const messages = useStore(store, (s) => s.messages);
 
   const [input, setInput] = useState("");
@@ -43,13 +43,13 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
       abortRef.current = new AbortController();
 
       await streamAgentResponse({
-        endpoint,
+        connection,
         store,
         userMessage: trimmed,
         signal: abortRef.current.signal,
       });
     },
-    [endpoint, store, isStreaming],
+    [connection, store, isStreaming],
   );
 
   const onKeyDown = useCallback(

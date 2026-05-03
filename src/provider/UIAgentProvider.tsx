@@ -1,19 +1,43 @@
 import { useRef, useMemo } from "react";
+import { useStore } from "zustand";
+import { createPortal } from "react-dom";
 import { createAgentStore } from "./store";
-import { AgentStoreContext, EndpointContext } from "./context";
+import type { AgentStore } from "./store";
+import { AgentStoreContext, AgentConnectionContext } from "./context";
 import type { UIAgentProviderProps } from "../types";
+import { DEFAULT_COMPONENTS } from "../components";
 
 export function UIAgentProvider({
+  publishableKey,
+  userToken,
   endpoint,
   components = {},
   permissions = {},
   onAction,
   children,
 }: UIAgentProviderProps) {
+  if (!publishableKey && !endpoint) {
+    throw new Error(
+      "[Faraday] UIAgentProvider requires either `publishableKey` + `userToken` (SaaS mode) or `endpoint` (self-hosted mode)."
+    );
+  }
+  if (publishableKey && !userToken) {
+    throw new Error(
+      "[Faraday] UIAgentProvider: `userToken` is required when using `publishableKey`."
+    );
+  }
   const storeRef = useRef<ReturnType<typeof createAgentStore> | null>(null);
 
   if (!storeRef.current) {
-    storeRef.current = createAgentStore(permissions, components);
+    storeRef.current = createAgentStore(permissions, {
+      ...DEFAULT_COMPONENTS,
+      ...components,
+    });
+    storeRef.current.getState().register({
+      id: "__faraday-toasts__",
+      tag: "div",
+      type: "container",
+    });
   }
 
   // Expose onAction via a stable ref so apply() can call it without re-creating the store
@@ -33,10 +57,51 @@ export function UIAgentProvider({
   }, [store]);
 
   return (
-    <EndpointContext.Provider value={endpoint}>
+    <AgentConnectionContext.Provider value={{
+        ...(publishableKey !== undefined && { publishableKey }),
+        ...(userToken !== undefined && { userToken }),
+        ...(endpoint !== undefined && { endpoint }),
+      }}>
       <AgentStoreContext.Provider value={patchedStore}>
         {children}
+        <ToastLayer store={patchedStore} />
       </AgentStoreContext.Provider>
-    </EndpointContext.Provider>
+    </AgentConnectionContext.Provider>
+  );
+}
+
+function ToastLayer({ store }: { store: AgentStore }) {
+  const insertedList = useStore(
+    store,
+    (s) => s.insertedComponents["__faraday-toasts__"] ?? [],
+  );
+  const compRegistry = useStore(store, (s) => s.components);
+
+  if (insertedList.length === 0) return null;
+
+  return createPortal(
+    <div
+      data-faraday
+      style={{
+        position: "fixed",
+        bottom: 24,
+        right: 24,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        zIndex: 2147483644,
+        pointerEvents: "auto",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
+    >
+      {insertedList.map((inst) => {
+        const entry = compRegistry[inst.componentName];
+        if (!entry) return null;
+        const Comp = entry.component;
+        return <Comp key={inst.instanceId} {...inst.props} />;
+      })}
+    </div>,
+    document.body,
   );
 }

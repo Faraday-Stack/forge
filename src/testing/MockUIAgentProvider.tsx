@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { createAgentStore } from "../provider/store";
-import { AgentStoreContext, EndpointContext } from "../provider/context";
+import { AgentStoreContext, AgentConnectionContext } from "../provider/context";
 import { processStreamEvents } from "../streaming/client";
 import { buildSystemPrompt } from "../engine/snapshot";
 import { nanoid } from "../utils/nanoid";
@@ -150,11 +150,11 @@ export function MockUIAgentProvider({
   }
 
   return (
-    <EndpointContext.Provider value={mockEndpoint}>
+    <AgentConnectionContext.Provider value={{ endpoint: mockEndpoint }}>
       <AgentStoreContext.Provider value={store}>
         {children}
       </AgentStoreContext.Provider>
-    </EndpointContext.Provider>
+    </AgentConnectionContext.Provider>
   );
 }
 

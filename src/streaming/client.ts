@@ -1,5 +1,5 @@
 import type { AgentStore } from "../provider/store";
-import type { ChatMessage } from "../types";
+import type { AgentConnectionConfig, ChatMessage } from "../types";
 import { buildSystemPrompt, TOOL_SCHEMA } from "../engine/snapshot";
 import { dispatchToolUse } from "../engine/apply";
 import { nanoid } from "../utils/nanoid";
@@ -12,8 +12,30 @@ export interface StreamEvent {
   message?: string;
 }
 
+const FARADAY_API_URL = "https://api.faraday.ai/v1/stream";
+
+function resolveRequest(connection: AgentConnectionConfig): {
+  url: string;
+  headers: Record<string, string>;
+} {
+  if (connection.publishableKey) {
+    return {
+      url: FARADAY_API_URL,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Faraday-Key": connection.publishableKey,
+        Authorization: `Bearer ${connection.userToken ?? ""}`,
+      },
+    };
+  }
+  return {
+    url: connection.endpoint!,
+    headers: { "Content-Type": "application/json" },
+  };
+}
+
 export interface StreamOptions {
-  endpoint: string;
+  connection: AgentConnectionConfig;
   store: AgentStore;
   userMessage: string;
   signal?: AbortSignal;
@@ -92,7 +114,7 @@ async function* parseResponseStream(response: Response): AsyncIterable<StreamEve
  *   { type: "error", message: string }
  */
 export async function streamAgentResponse(options: StreamOptions): Promise<void> {
-  const { endpoint, store, userMessage, signal } = options;
+  const { connection, store, userMessage, signal } = options;
   const state = store.getState();
 
   const userMsg: ChatMessage = {
@@ -117,11 +139,13 @@ export async function streamAgentResponse(options: StreamOptions): Promise<void>
       .map(({ role, content }) => ({ role, content })),
   });
 
+  const { url, headers } = resolveRequest(connection);
+
   let response: Response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body,
       ...(signal !== undefined && { signal }),
     });

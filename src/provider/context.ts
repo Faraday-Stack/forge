@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { AgentStore } from "./store";
+import type { AgentConnectionConfig } from "../types";
 
 export const AgentStoreContext = createContext<AgentStore | null>(null);
 
@@ -11,8 +12,8 @@ export function useAgentStore(): AgentStore {
   return store;
 }
 
-export const EndpointContext = createContext<string>("");
+export const AgentConnectionContext = createContext<AgentConnectionConfig>({});
 
-export function useEndpoint(): string {
-  return useContext(EndpointContext);
+export function useAgentConnection(): AgentConnectionConfig {
+  return useContext(AgentConnectionContext);
 }

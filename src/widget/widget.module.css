@@ -226,6 +226,16 @@
   50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
 }
 
+/* Pending-modifications border — shown while agent changes are uncommitted */
+.modBorder {
+  position: fixed;
+  inset: 0;
+  border: 3px solid #f97316;
+  pointer-events: none;
+  z-index: 2147483645;
+  box-sizing: border-box;
+}
+
 .emptyState {
   flex: 1;
   display: flex;

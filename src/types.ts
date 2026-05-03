@@ -55,8 +55,13 @@ export interface ComponentRegistryEntry {
   propsSchema?: Record<string, string>;
 }
 
-export interface UIAgentProviderProps {
-  endpoint: string;
+export interface AgentConnectionConfig {
+  publishableKey?: string;
+  userToken?: string;
+  endpoint?: string;
+}
+
+export interface UIAgentProviderProps extends AgentConnectionConfig {
   components?: Record<string, ComponentRegistryEntry>;
   permissions?: Partial<PermissionsConfig>;
   onAction?: (action: Action) => void;
