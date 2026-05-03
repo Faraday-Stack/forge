@@ -304,3 +304,126 @@
   text-align: center;
   padding: 24px;
 }
+
+/* Modifiable highlight — drawn around every registered element while the
+   chat panel is open so the user can see what's editable. */
+.modifiableHighlight {
+  pointer-events: none;
+  border: 2px dashed #f97316;
+  border-radius: 4px;
+  z-index: 2147483644;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
+  animation: faradayHighlightFade 0.18s ease-out;
+}
+
+.modifiableHighlightLabel {
+  position: absolute;
+  top: -10px;
+  left: 6px;
+  background: #f97316;
+  color: #ffffff;
+  font-family:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+@keyframes faradayHighlightFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Dot — anchored to the topmost Modifiable, doubles as open/close toggle.
+   `top` and `left` are set inline (fixed positioning, viewport-relative). */
+.floatingExpandBtn {
+  position: fixed;
+  z-index: 2147483646;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f97316;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.22),
+    0 0 0 2px rgba(255, 255, 255, 0.95);
+  transition:
+    background 0.12s,
+    transform 0.08s;
+}
+
+.floatingExpandBtn:hover {
+  background: #ea580c;
+  transform: scale(1.06);
+}
+
+.floatingExpandBtn:active {
+  transform: scale(0.95);
+}
+
+/* Popover that opens above the targeted element */
+.inlinePopover {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  padding: 10px 12px;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+}
+
+.inlinePopoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.inlineTarget {
+  font-family:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #6b7280;
+  letter-spacing: 0.02em;
+}
+
+.inlineCloseBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+
+.inlineCloseBtn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.inlineInputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inlineStatus {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  font-family: inherit;
+}

@@ -16,6 +16,13 @@ export interface InsertedComponent {
   position: number;
 }
 
+/** JSX source location captured from React's fiber tree. Dev-mode only. */
+export interface SourceLocation {
+  fileName: string;
+  lineNumber: number;
+  columnNumber?: number;
+}
+
 /**
  * Registry entry for an element that the agent can target.
  *
@@ -32,6 +39,27 @@ export interface ModifiableEntry {
   containerId?: string;
   /** Current text content, kept in sync so the LLM snapshot reflects live state. */
   currentText?: string;
+}
+
+/**
+ * Live DOM context for one modifiable, captured at the moment a request is sent.
+ * Source location is best-effort — only present in dev builds where React keeps `_debugSource`.
+ */
+export interface ModifiableContext {
+  id: string;
+  source?: SourceLocation;
+  domSnippet?: string;
+}
+
+/**
+ * Per-request context sent alongside `messages`/`system`/`tools`. The backend persists
+ * this on the request log so the dashboard can show *where* a change happened — not just *what*.
+ */
+export interface PageContext {
+  url?: string;
+  route?: string;
+  userAgent?: string;
+  modifiables: ModifiableContext[];
 }
 
 /**

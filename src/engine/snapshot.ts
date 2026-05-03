@@ -1,9 +1,43 @@
 import type { AgentStore } from "../provider/store";
-import type { PageSnapshot } from "../types";
+import type { ModifiableContext, PageContext, PageSnapshot } from "../types";
+import { getDomSnippet, getElementSource } from "../utils/source";
 import { TOOL_SCHEMA } from "./tools";
 
 export function buildSnapshot(store: AgentStore): PageSnapshot {
   return store.getState().snapshot();
+}
+
+/**
+ * Build per-request runtime context: page url, route, and (where capturable) the
+ * source location + DOM snippet of every registered modifiable.
+ *
+ * Source capture goes through React's `_debugSource` via fiber traversal — it's
+ * present in dev but stripped in production. Missing source is normal and silent.
+ *
+ * Safe to call in non-browser environments (returns just `{modifiables: []}`).
+ */
+export function buildPageContext(store: AgentStore): PageContext {
+  if (typeof document === "undefined" || typeof window === "undefined") {
+    return { modifiables: [] };
+  }
+
+  const registry = store.getState().registry;
+  const modifiables: ModifiableContext[] = Object.values(registry).map((entry) => {
+    const el = document.getElementById(entry.id);
+    const ctx: ModifiableContext = { id: entry.id };
+    const source = getElementSource(el);
+    if (source) ctx.source = source;
+    const snippet = getDomSnippet(el);
+    if (snippet) ctx.domSnippet = snippet;
+    return ctx;
+  });
+
+  return {
+    url: window.location.href,
+    route: window.location.pathname,
+    userAgent: navigator?.userAgent,
+    modifiables,
+  };
 }
 
 export function buildSystemPrompt(store: AgentStore): string {

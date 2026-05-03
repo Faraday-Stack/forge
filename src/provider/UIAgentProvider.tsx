@@ -7,6 +7,7 @@ import { AgentStoreContext, AgentConnectionContext } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
 import { loadOverrides } from "../persistence/client";
+import { InlineEditOverlay } from "../widget/InlineEditOverlay";
 
 /**
  * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses
@@ -103,6 +104,7 @@ export function UIAgentProvider({
       <AgentStoreContext.Provider value={patchedStore}>
         {children}
         <ToastLayer store={patchedStore} />
+        <InlineEditOverlay />
       </AgentStoreContext.Provider>
     </AgentConnectionContext.Provider>
   );

@@ -1,6 +1,6 @@
 import type { AgentStore } from "../provider/store";
 import type { AgentConnectionConfig, ChatMessage } from "../types";
-import { buildSystemPrompt, TOOL_SCHEMA } from "../engine/snapshot";
+import { buildPageContext, buildSystemPrompt, TOOL_SCHEMA } from "../engine/snapshot";
 import { dispatchToolUse } from "../engine/apply";
 import { nanoid } from "../utils/nanoid";
 
@@ -109,6 +109,69 @@ async function* parseResponseStream(
 }
 
 /**
+ * One-shot request that doesn't touch store.messages — used by the floating
+ * input bar and (formerly) the inline-edit popover. If `targetId` is provided,
+ * the prompt is pre-pended with an explicit target focus so the LLM scopes the
+ * change to that one element. Without `targetId`, the LLM picks a target
+ * itself from the snapshot.
+ */
+export async function streamInlineEdit(options: {
+  connection: AgentConnectionConfig;
+  store: AgentStore;
+  targetId?: string;
+  userMessage: string;
+  signal?: AbortSignal;
+}): Promise<{ applied: boolean; assistantText: string }> {
+  const { connection, store, targetId, userMessage, signal } = options;
+
+  const focusedMessage = targetId
+    ? `Change the element with id="${targetId}" only. ` +
+      `User says: "${userMessage}". ` +
+      `Apply the change with one or more tool calls targeting this element. Reply briefly.`
+    : userMessage;
+
+  const body = JSON.stringify({
+    system: buildSystemPrompt(store),
+    tools: TOOL_SCHEMA,
+    messages: [{ role: "user", content: focusedMessage }],
+    pageContext: buildPageContext(store),
+  });
+
+  const { url, headers } = resolveRequest(connection);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      ...(signal !== undefined && { signal }),
+    });
+  } catch (err) {
+    throw new Error(`Connection error: ${String(err)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Server error: ${response.status}`);
+  }
+
+  let appliedAny = false;
+  let assistantText = "";
+  for await (const event of parseResponseStream(response)) {
+    if (event.type === "text_delta" && event.delta) {
+      assistantText += event.delta;
+    } else if (event.type === "tool_use" && event.name && event.input) {
+      const err = dispatchToolUse(store, { name: event.name, input: event.input });
+      if (!err) appliedAny = true;
+    } else if (event.type === "error" && event.message) {
+      throw new Error(event.message);
+    }
+  }
+
+  return { applied: appliedAny, assistantText };
+}
+
+/**
  * Sends the conversation to the host backend endpoint and streams the response.
  *
  * Protocol: the endpoint receives { messages, system, tools } and must stream
@@ -146,6 +209,7 @@ export async function streamAgentResponse(
       .getState()
       .messages.filter((m) => !m.streaming)
       .map(({ role, content }) => ({ role, content })),
+    pageContext: buildPageContext(store),
   });
 
   const { url, headers } = resolveRequest(connection);
