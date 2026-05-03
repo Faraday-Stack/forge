@@ -1,5 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import type { CSSProperties } from "react";
+import { sanitizeStyleValue } from "../engine/sanitize";
 import type {
   Override,
   InsertedComponent,
@@ -83,12 +84,12 @@ export function createAgentStore(
     components,
 
     register(entry) {
-      set((s) => ({ registry: { ...s.registry, [entry.id]: entry } }));
+      set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
     },
 
     unregister(id) {
-      set((s) => {
-        const registry = { ...s.registry };
+      set((state) => {
+        const registry = { ...state.registry };
         delete registry[id];
         return { registry };
       });
@@ -124,12 +125,12 @@ export function createAgentStore(
       const nextInserted = { ...insertedComponents };
 
       if (action.type === "applyStyle") {
-        // Sanitize: only allowedStyleProps keys pass through
+        // Filter to allowed props, then check values for injection patterns
         const sanitized: CSSProperties = {};
         for (const [k, v] of Object.entries(action.properties)) {
-          if (permissions.allowedStyleProps.includes(k)) {
-            (sanitized as Record<string, unknown>)[k] = v;
-          }
+          if (!permissions.allowedStyleProps.includes(k)) continue;
+          const clean = sanitizeStyleValue(String(v));
+          if (clean !== null) (sanitized as Record<string, unknown>)[k] = clean;
         }
         const prev = nextOverrides[action.targetId]?.style ?? {};
         const prevSlice: CSSProperties = {};
@@ -274,10 +275,13 @@ export function createAgentStore(
     snapshot() {
       const { registry, overrides, insertedComponents, components } = get();
       return {
-        modifiables: Object.values(registry).map((entry) => ({
-          ...entry,
-          currentStyle: overrides[entry.id]?.style,
-        })),
+        modifiables: Object.values(registry).map((entry) => {
+          const style = overrides[entry.id]?.style;
+          return {
+            ...entry,
+            ...(style !== undefined && { currentStyle: style }),
+          };
+        }),
         insertedComponents,
         components: Object.entries(components).map(([name, entry]) => ({
           name,

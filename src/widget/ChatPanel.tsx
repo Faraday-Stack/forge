@@ -1,4 +1,10 @@
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type KeyboardEvent,
+} from "react";
 import { useStore } from "zustand";
 import { useAgentStore, useEndpoint } from "../provider/context";
 import { streamAgentResponse } from "../streaming/client";
@@ -16,13 +22,15 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 
   const [input, setInput] = useState("");
   const abortRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isStreaming = messages.some((m) => m.streaming);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length === 0) return;
+    const el = messagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const send = useCallback(
@@ -41,34 +49,34 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         signal: abortRef.current.signal,
       });
     },
-    [endpoint, store, isStreaming]
+    [endpoint, store, isStreaming],
   );
 
   const onKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
         send(input);
       }
     },
-    [input, send]
+    [input, send],
   );
 
-  const onVoiceTranscript = useCallback(
-    (transcript: string) => {
-      setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
-      textareaRef.current?.focus();
-    },
-    []
-  );
+  const onVoiceTranscript = useCallback((transcript: string) => {
+    setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    textareaRef.current?.focus();
+  }, []);
 
   // Auto-resize textarea
-  const onInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const el = e.target;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-    setInput(el.value);
-  }, []);
+  const onInput = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const element = event.target;
+      element.style.height = "auto";
+      element.style.height = `${Math.min(element.scrollHeight, 120)}px`;
+      setInput(element.value);
+    },
+    [],
+  );
 
   return (
     <div className={styles.panel} role="dialog" aria-label="Faraday UI Agent">
@@ -80,32 +88,34 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           onClick={onClose}
           aria-label="Close"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
 
-      <div className={styles.messages} role="log" aria-live="polite">
+      <div ref={messagesRef} className={styles.messages} role="log" aria-live="polite">
         {messages.length === 0 && (
           <div className={styles.emptyState}>
             Ask me to change anything on this page
           </div>
         )}
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={styles.message}
-            data-role={msg.role}
-          >
+          <div key={msg.id} className={styles.message} data-role={msg.role}>
             {msg.content}
             {msg.streaming && msg.content === "" && (
               <span className={styles.streamingDot} aria-hidden />
             )}
           </div>
         ))}
-        <div ref={bottomRef} />
       </div>
 
       <div className={styles.inputRow}>
@@ -131,7 +141,14 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           disabled={!input.trim() || isStreaming}
           aria-label="Send"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>

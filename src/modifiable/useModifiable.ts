@@ -13,7 +13,7 @@ interface UseModifiableOptions {
 
 export function useModifiable(
   id: string,
-  defaults: UseModifiableOptions = {}
+  defaults: UseModifiableOptions = {},
 ): ModifiableOverride & { style: React.CSSProperties } {
   const store = useAgentStore();
 
@@ -25,8 +25,12 @@ export function useModifiable(
       id,
       tag: defaultsRef.current.tag ?? "div",
       type: defaultsRef.current.type ?? "element",
-      ...(defaultsRef.current.containerId !== undefined && { containerId: defaultsRef.current.containerId }),
-      ...(defaultsRef.current.text !== undefined && { currentText: defaultsRef.current.text }),
+      ...(defaultsRef.current.containerId !== undefined && {
+        containerId: defaultsRef.current.containerId,
+      }),
+      ...(defaultsRef.current.text !== undefined && {
+        currentText: defaultsRef.current.text,
+      }),
     };
     store.getState().register(entry);
     return () => store.getState().unregister(id);

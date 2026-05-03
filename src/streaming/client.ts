@@ -4,11 +4,80 @@ import { buildSystemPrompt, TOOL_SCHEMA } from "../engine/snapshot";
 import { dispatchToolUse } from "../engine/apply";
 import { nanoid } from "../utils/nanoid";
 
+export interface StreamEvent {
+  type: string;
+  delta?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  message?: string;
+}
+
 export interface StreamOptions {
   endpoint: string;
   store: AgentStore;
   userMessage: string;
   signal?: AbortSignal;
+}
+
+/**
+ * Processes an async iterable of StreamEvents, updating the store as events arrive.
+ * Extracted so the mock layer can feed events directly without going through fetch.
+ */
+export async function processStreamEvents(
+  store: AgentStore,
+  events: AsyncIterable<StreamEvent>
+): Promise<void> {
+  try {
+    for await (const event of events) {
+      if (event.type === "text_delta" && event.delta) {
+        store.getState().appendToLastMessage(event.delta);
+      } else if (event.type === "tool_use" && event.name && event.input) {
+        dispatchToolUse(store, { name: event.name, input: event.input });
+      } else if (event.type === "error" && event.message) {
+        store.getState().appendToLastMessage(`\n\n[Error: ${event.message}]`);
+      }
+    }
+  } finally {
+    store.getState().setLastMessageStreaming(false);
+  }
+}
+
+async function* parseResponseStream(response: Response): AsyncIterable<StreamEvent> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line || line.startsWith(":")) continue;
+
+        const jsonStr = line.startsWith("data:") ? line.slice(5).trim() : line;
+        if (!jsonStr || jsonStr === "[DONE]") continue;
+
+        let event: StreamEvent;
+        try {
+          event = JSON.parse(jsonStr) as StreamEvent;
+        } catch {
+          continue;
+        }
+
+        yield event;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -33,9 +102,8 @@ export async function streamAgentResponse(options: StreamOptions): Promise<void>
   };
   state.appendMessage(userMsg);
 
-  const assistantMsgId = nanoid();
   state.appendMessage({
-    id: assistantMsgId,
+    id: nanoid(),
     role: "assistant",
     content: "",
     streaming: true,
@@ -55,7 +123,7 @@ export async function streamAgentResponse(options: StreamOptions): Promise<void>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-      signal,
+      ...(signal !== undefined && { signal }),
     });
   } catch (err) {
     state.appendToLastMessage(`\n\n[Connection error: ${String(err)}]`);
@@ -69,53 +137,5 @@ export async function streamAgentResponse(options: StreamOptions): Promise<void>
     return;
   }
 
-  const reader = response.body?.getReader();
-  if (!reader) {
-    state.setLastMessageStreaming(false);
-    return;
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Process all complete newline-delimited JSON lines
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (!line || line.startsWith(":")) continue;
-
-        // Strip SSE "data:" prefix if present
-        const jsonStr = line.startsWith("data:") ? line.slice(5).trim() : line;
-        if (!jsonStr || jsonStr === "[DONE]") continue;
-
-        let event: { type: string; delta?: string; name?: string; input?: Record<string, unknown>; message?: string };
-        try {
-          event = JSON.parse(jsonStr);
-        } catch {
-          continue;
-        }
-
-        if (event.type === "text_delta" && event.delta) {
-          store.getState().appendToLastMessage(event.delta);
-        } else if (event.type === "tool_use" && event.name && event.input) {
-          dispatchToolUse(store, { name: event.name, input: event.input });
-        } else if (event.type === "error" && event.message) {
-          store.getState().appendToLastMessage(`\n\n[Error: ${event.message}]`);
-        }
-        // "done" event: loop will exit naturally on stream close
-      }
-    }
-  } finally {
-    reader.releaseLock();
-    store.getState().setLastMessageStreaming(false);
-  }
+  await processStreamEvents(store, parseResponseStream(response));
 }

@@ -21,7 +21,7 @@ import {
   Modifiable,
   useModifiable,
 } from "@faraday/ui-agent";
-import "@faraday/ui-agent/dist/index.css";
+import "@faraday/ui-agent/style.css";
 
 function App() {
   return (

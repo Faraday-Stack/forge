@@ -18,19 +18,21 @@ interface UIAgentLauncherProps {
 
 const POSITION_STYLE: Record<Position, React.CSSProperties> = {
   "bottom-right": { bottom: 20, right: 20 },
-  "bottom-left":  { bottom: 20, left: 20 },
-  "top-right":    { top: 20, right: 20 },
-  "top-left":     { top: 20, left: 20 },
+  "bottom-left": { bottom: 20, left: 20 },
+  "top-right": { top: 20, right: 20 },
+  "top-left": { top: 20, left: 20 },
 };
 
 const POSITION_PLACEMENT: Record<Position, Placement> = {
   "bottom-right": "top-end",
-  "bottom-left":  "top-start",
-  "top-right":    "bottom-end",
-  "top-left":     "bottom-start",
+  "bottom-left": "top-start",
+  "top-right": "bottom-end",
+  "top-left": "bottom-start",
 };
 
-export function UIAgentLauncher({ position = "bottom-right" }: UIAgentLauncherProps) {
+export function UIAgentLauncher({
+  position = "bottom-right",
+}: UIAgentLauncherProps) {
   const [open, setOpen] = useState(false);
 
   const { refs, floatingStyles } = useFloating({
@@ -43,6 +45,7 @@ export function UIAgentLauncher({ position = "bottom-right" }: UIAgentLauncherPr
   const close = useCallback(() => setOpen(false), []);
 
   const launcherStyle: React.CSSProperties = {
+    position: "fixed",
     ...POSITION_STYLE[position],
   };
 
@@ -58,12 +61,26 @@ export function UIAgentLauncher({ position = "bottom-right" }: UIAgentLauncherPr
         aria-expanded={open}
       >
         {open ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         )}
@@ -75,6 +92,6 @@ export function UIAgentLauncher({ position = "bottom-right" }: UIAgentLauncherPr
         </div>
       )}
     </div>,
-    document.body
+    document.body,
   );
 }

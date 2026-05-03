@@ -5,21 +5,33 @@ interface VoiceInputProps {
   className?: string;
 }
 
-// Declare browser SpeechRecognition types (not in all TS lib versions)
-declare global {
-  interface Window {
-    SpeechRecognition?: typeof SpeechRecognition;
-    webkitSpeechRecognition?: typeof SpeechRecognition;
-  }
+// Minimal SpeechRecognition interface — avoids depending on @types/dom-speech-recognition
+interface SpeechRecognitionInstance {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: { results: { 0: { 0: { transcript: string } } } }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
+
+function getSpeechRecognition(): SpeechRecognitionCtor | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (
+    (window as unknown as { SpeechRecognition?: SpeechRecognitionCtor }).SpeechRecognition ??
+    (window as unknown as { webkitSpeechRecognition?: SpeechRecognitionCtor }).webkitSpeechRecognition
+  );
 }
 
 export function VoiceInput({ onTranscript, className }: VoiceInputProps) {
   const [recording, setRecording] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
-  const isSupported =
-    typeof window !== "undefined" &&
-    (window.SpeechRecognition !== undefined || window.webkitSpeechRecognition !== undefined);
+  const isSupported = getSpeechRecognition() !== undefined;
 
   const toggle = useCallback(() => {
     if (recording) {
@@ -28,7 +40,7 @@ export function VoiceInput({ onTranscript, className }: VoiceInputProps) {
       return;
     }
 
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const SR = getSpeechRecognition();
     if (!SR) return;
 
     const rec = new SR();
