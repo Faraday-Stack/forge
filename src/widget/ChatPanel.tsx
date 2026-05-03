@@ -28,6 +28,11 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailInput, setEmailInput] = useState(() => {
+    if (typeof localStorage === "undefined") return "";
+    return localStorage.getItem("faraday:end-user-email") ?? "";
+  });
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -75,19 +80,49 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
       (k) => (insertedComponents[k]?.length ?? 0) > 0,
     );
 
-  const onSave = useCallback(async () => {
-    setSaveStatus("saving");
-    setSaveError(null);
-    try {
-      await saveOverrides(connection, store.getState().getPersistableState());
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2000);
-    } catch (err) {
-      setSaveStatus("error");
-      setSaveError(err instanceof Error ? err.message : String(err));
-      setTimeout(() => setSaveStatus("idle"), 3000);
-    }
-  }, [connection, store]);
+  const submitSave = useCallback(
+    async (email: string) => {
+      setSaveStatus("saving");
+      setSaveError(null);
+      try {
+        const snapshot = store.getState().getPersistableState();
+        const recentMessages = store
+          .getState()
+          .messages.filter((m) => !m.streaming)
+          .map(({ role, content }) => ({ role, content }));
+        await saveOverrides(connection, {
+          ...snapshot,
+          email,
+          messages: recentMessages,
+        });
+        setSaveStatus("saved");
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("faraday:end-user-email", email);
+        }
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      } catch (err) {
+        setSaveStatus("error");
+        setSaveError(err instanceof Error ? err.message : String(err));
+        setTimeout(() => setSaveStatus("idle"), 3000);
+      }
+    },
+    [connection, store],
+  );
+
+  const onSave = useCallback(() => {
+    setEmailModalOpen(true);
+  }, []);
+
+  const onEmailModalSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const trimmed = emailInput.trim();
+      if (!trimmed || !/.+@.+\..+/.test(trimmed)) return;
+      setEmailModalOpen(false);
+      void submitSave(trimmed);
+    },
+    [emailInput, submitSave],
+  );
 
   const onVoiceTranscript = useCallback((transcript: string) => {
     setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
@@ -203,6 +238,94 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           </svg>
         </button>
       </div>
+
+      {emailModalOpen && (
+        <div
+          role="dialog"
+          aria-label="Save changes"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 10,
+          }}
+        >
+          <form
+            onSubmit={onEmailModalSubmit}
+            style={{
+              background: "#fff",
+              borderRadius: 10,
+              padding: 18,
+              width: "100%",
+              maxWidth: 320,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
+              fontFamily: "inherit",
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+              Save these changes
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
+              Add your email so the team can follow up with you.
+            </div>
+            <input
+              type="email"
+              required
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              placeholder="you@company.com"
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                border: "1px solid #e2e8f0",
+                borderRadius: 6,
+                fontSize: 13,
+                marginBottom: 12,
+                outline: "none",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setEmailModalOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 6,
+                  padding: "7px 12px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{
+                  background: "#0f172a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "7px 14px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

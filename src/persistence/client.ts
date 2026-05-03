@@ -24,7 +24,7 @@ function authHeaders(connection: AgentConnectionConfig): Record<string, string> 
 
 export async function saveOverrides(
   connection: AgentConnectionConfig,
-  payload: Snapshot,
+  payload: Snapshot & { email: string; messages?: Array<{ role: string; content: unknown }>; pageContext?: unknown },
 ): Promise<void> {
   const res = await fetch(`${resolveBase(connection)}/v1/save`, {
     method: "POST",
