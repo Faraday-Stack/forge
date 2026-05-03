@@ -20,7 +20,7 @@ function resolveRequest(connection: AgentConnectionConfig): {
 } {
   if (connection.publishableKey) {
     return {
-      url: FARADAY_API_URL,
+      url: connection.apiUrl ?? FARADAY_API_URL,
       headers: {
         "Content-Type": "application/json",
         "X-Faraday-Key": connection.publishableKey,
@@ -47,7 +47,7 @@ export interface StreamOptions {
  */
 export async function processStreamEvents(
   store: AgentStore,
-  events: AsyncIterable<StreamEvent>
+  events: AsyncIterable<StreamEvent>,
 ): Promise<void> {
   try {
     for await (const event of events) {
@@ -64,7 +64,9 @@ export async function processStreamEvents(
   }
 }
 
-async function* parseResponseStream(response: Response): AsyncIterable<StreamEvent> {
+async function* parseResponseStream(
+  response: Response,
+): AsyncIterable<StreamEvent> {
   const reader = response.body?.getReader();
   if (!reader) return;
 
@@ -78,13 +80,17 @@ async function* parseResponseStream(response: Response): AsyncIterable<StreamEve
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
+      // The last element after split may be an incomplete line — keep it in the
+      // buffer so it gets completed by the next chunk.
       buffer = lines.pop() ?? "";
 
       for (const raw of lines) {
         const line = raw.trim();
         if (!line || line.startsWith(":")) continue;
 
+        // Support both raw NDJSON and SSE (`data: {...}`) formats.
         const jsonStr = line.startsWith("data:") ? line.slice(5).trim() : line;
+        // "[DONE]" is the OpenAI SSE end-of-stream sentinel — not valid JSON, skip it.
         if (!jsonStr || jsonStr === "[DONE]") continue;
 
         let event: StreamEvent;
@@ -113,7 +119,9 @@ async function* parseResponseStream(response: Response): AsyncIterable<StreamEve
  *   { type: "done" }
  *   { type: "error", message: string }
  */
-export async function streamAgentResponse(options: StreamOptions): Promise<void> {
+export async function streamAgentResponse(
+  options: StreamOptions,
+): Promise<void> {
   const { connection, store, userMessage, signal } = options;
   const state = store.getState();
 
@@ -134,8 +142,9 @@ export async function streamAgentResponse(options: StreamOptions): Promise<void>
   const body = JSON.stringify({
     system: buildSystemPrompt(store),
     tools: TOOL_SCHEMA,
-    messages: store.getState().messages
-      .filter((m) => !m.streaming)
+    messages: store
+      .getState()
+      .messages.filter((m) => !m.streaming)
       .map(({ role, content }) => ({ role, content })),
   });
 

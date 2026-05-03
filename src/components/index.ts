@@ -1,8 +1,10 @@
+import type React from "react";
 import type { ComponentRegistryEntry } from "../types";
 import { FaradayBanner } from "./FaradayBanner";
 import { FaradayCard } from "./FaradayCard";
 import { FaradayBadge } from "./FaradayBadge";
 import { FaradayToast } from "./FaradayToast";
+import { FaradayText } from "./FaradayText";
 
 export { FaradayBanner } from "./FaradayBanner";
 export type { FaradayBannerProps } from "./FaradayBanner";
@@ -12,8 +14,21 @@ export { FaradayBadge } from "./FaradayBadge";
 export type { FaradayBadgeProps } from "./FaradayBadge";
 export { FaradayToast } from "./FaradayToast";
 export type { FaradayToastProps } from "./FaradayToast";
+export { FaradayText } from "./FaradayText";
+export type { FaradayTextProps } from "./FaradayText";
 
 export const DEFAULT_COMPONENTS: Record<string, ComponentRegistryEntry> = {
+  FaradayText: {
+    component: FaradayText as unknown as React.ComponentType<Record<string, unknown>>,
+    propsSchema: {
+      text: "string (required) — the text content",
+      as: "string — one of: p, h1, h2, h3, h4, span (default: p)",
+      color: "string — CSS color value",
+      fontSize: "string — CSS font-size value (e.g. '18px', '1.2rem')",
+      fontWeight: "string — CSS font-weight value (e.g. '400', '600', 'bold')",
+      textAlign: "string — one of: left, center, right",
+    },
+  },
   FaradayBanner: {
     component: FaradayBanner as unknown as React.ComponentType<Record<string, unknown>>,
     propsSchema: {

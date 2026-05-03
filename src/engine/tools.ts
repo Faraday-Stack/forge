@@ -1,11 +1,15 @@
 export const TOOL_SCHEMA = [
   {
     name: "applyStyle",
-    description: "Apply CSS properties to a modifiable element. Only whitelisted properties are applied.",
+    description:
+      "Apply CSS properties to a modifiable element. Only whitelisted properties are applied.",
     input_schema: {
       type: "object",
       properties: {
-        targetId: { type: "string", description: "The id of the modifiable element." },
+        targetId: {
+          type: "string",
+          description: "The id of the modifiable element.",
+        },
         properties: {
           type: "object",
           description: "CSS property/value pairs to apply.",
@@ -46,7 +50,8 @@ export const TOOL_SCHEMA = [
   },
   {
     name: "reorder",
-    description: "Reorder inserted components inside a container by providing a new order of instanceIds.",
+    description:
+      "Reorder inserted components inside a container by providing a new order of instanceIds.",
     input_schema: {
       type: "object",
       properties: {
@@ -58,14 +63,22 @@ export const TOOL_SCHEMA = [
   },
   {
     name: "insertComponent",
-    description: "Insert a registered component into a container at a given position.",
+    description:
+      "Insert a registered component into a container at a given position.",
     input_schema: {
       type: "object",
       properties: {
         containerId: { type: "string" },
-        componentName: { type: "string", description: "Must match a name from the components registry." },
+        componentName: {
+          type: "string",
+          description: "Must match a name from the components registry.",
+        },
         props: { type: "object", additionalProperties: true },
-        position: { type: "integer", description: "0-based insertion index.", default: 0 },
+        position: {
+          type: "integer",
+          description: "0-based insertion index.",
+          default: 0,
+        },
       },
       required: ["containerId", "componentName", "props"],
     },

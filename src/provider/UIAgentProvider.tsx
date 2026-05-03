@@ -7,10 +7,22 @@ import { AgentStoreContext, AgentConnectionContext } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
 
+/**
+ * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses
+ * `Modifiable`, `useModifiable`, or `UIAgentLauncher`.
+ *
+ * Operates in two modes — supply exactly one:
+ * - **Self-hosted**: `endpoint` pointing at your backend's streaming route
+ * - **SaaS**: `publishableKey` + `userToken` (throws if `userToken` is missing)
+ *
+ * @throws if neither `publishableKey` nor `endpoint` is provided
+ * @throws if `publishableKey` is set without a `userToken`
+ */
 export function UIAgentProvider({
   publishableKey,
   userToken,
   endpoint,
+  apiUrl,
   components = {},
   permissions = {},
   onAction,
@@ -61,6 +73,7 @@ export function UIAgentProvider({
         ...(publishableKey !== undefined && { publishableKey }),
         ...(userToken !== undefined && { userToken }),
         ...(endpoint !== undefined && { endpoint }),
+        ...(apiUrl !== undefined && { apiUrl }),
       }}>
       <AgentStoreContext.Provider value={patchedStore}>
         {children}

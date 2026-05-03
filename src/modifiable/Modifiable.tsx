@@ -12,6 +12,18 @@ type ModifiableProps<T extends ElementType = "div"> = {
   containerId?: string;
 } & Omit<ComponentPropsWithRef<T>, "id">;
 
+/**
+ * Declarative wrapper that registers an HTML element with Faraday and applies agent overrides.
+ * Equivalent to calling `useModifiable` + rendering the target element manually.
+ *
+ * **Text content**: pass `defaultText` to make the element's text modifiable by the agent.
+ * If you pass `children` instead, text is rendered as-is and the agent cannot change it via `setText`.
+ *
+ * **Containers**: set `type="container"` to allow the agent to insert registered components inside
+ * this element via `insertComponent`. Inserted components render after the element's own children.
+ *
+ * @param id - Unique identifier for this element. Must be stable across renders.
+ */
 export function Modifiable<T extends ElementType = "div">({
   id,
   as,

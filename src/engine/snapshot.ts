@@ -8,11 +8,18 @@ export function buildSnapshot(store: AgentStore): PageSnapshot {
 
 export function buildSystemPrompt(store: AgentStore): string {
   const snap = buildSnapshot(store);
+  const { allowedStyleProps } = store.getState().permissions;
 
   return [
     "You are a UI modification agent. The user wants to change their web app's interface.",
     "Respond in a friendly, concise way. When you make changes, describe what you did briefly.",
     "You can call multiple tools in one response to accomplish the user's request.",
+    "",
+    // Inject the allowlist so the LLM knows exactly which properties it can use.
+    // Without this the model hallucinates restrictions or attempts blocked properties.
+    `## Allowed CSS properties for applyStyle`,
+    allowedStyleProps.join(", "),
+    "Only use properties from this list — others will be silently ignored.",
     "",
     "## Current page elements",
     "```json",

@@ -11,6 +11,18 @@ interface UseModifiableOptions {
   containerId?: string;
 }
 
+/**
+ * Registers an element with the Faraday store so the agent can target it, and returns
+ * the current agent-applied overrides for that element.
+ *
+ * - Registers on mount, unregisters on unmount. Re-registers if `id` changes.
+ * - The returned `text`, `style`, and `visible` values reflect agent overrides layered
+ *   on top of `defaults`. When no override exists the defaults are returned as-is.
+ *
+ * @param id - Unique element identifier. Must match the `id` you pass to `<Modifiable>` or the LLM's target.
+ * @param defaults - Initial values and registration metadata.
+ * @returns `{ text, style, visible }` — apply these to your element's props.
+ */
 export function useModifiable(
   id: string,
   defaults: UseModifiableOptions = {},

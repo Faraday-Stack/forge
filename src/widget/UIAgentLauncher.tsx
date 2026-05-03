@@ -15,6 +15,7 @@ import styles from "./widget.module.css";
 type Position = "bottom-right" | "bottom-left" | "top-right" | "top-left";
 
 interface UIAgentLauncherProps {
+  /** Corner of the viewport to anchor the launcher button. Defaults to `"bottom-right"`. */
   position?: Position;
 }
 
@@ -32,6 +33,12 @@ const POSITION_PLACEMENT: Record<Position, Placement> = {
   "top-left": "bottom-start",
 };
 
+/**
+ * Floating action button that opens the Faraday chat panel.
+ *
+ * Renders into a portal at `document.body` so it floats above all other content.
+ * When the agent has applied modifications, a colored border indicator is shown around the viewport.
+ */
 export function UIAgentLauncher({
   position = "bottom-right",
 }: UIAgentLauncherProps) {

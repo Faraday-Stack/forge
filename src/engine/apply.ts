@@ -7,6 +7,12 @@ interface RawToolUse {
   input: Record<string, unknown>;
 }
 
+/**
+ * Translates a raw LLM tool call into a typed `Action` and forwards it to the store.
+ *
+ * @returns `null` on success, or an error string if the tool name is unknown or the
+ * store rejects the action (e.g. unknown targetId).
+ */
 export function dispatchToolUse(
   store: AgentStore,
   tool: RawToolUse,
@@ -19,7 +25,7 @@ export function dispatchToolUse(
         type: "applyStyle",
         targetId: tool.input.targetId as string,
         properties: tool.input.properties as Record<string, string>,
-        scope: (tool.input.scope as "element" | "descendants") ?? "element",
+        scope: (tool.input.scope as "element" | "descendants") ?? "element", // LLM may omit scope
       };
       break;
     case "setText":
@@ -54,7 +60,7 @@ export function dispatchToolUse(
       };
       break;
     case "undo":
-      action = { type: "undo", steps: (tool.input.steps as number) ?? 1 };
+      action = { type: "undo", steps: (tool.input.steps as number) ?? 1 }; // default 1 step
       break;
     default:
       return `Unknown tool: ${tool.name}`;

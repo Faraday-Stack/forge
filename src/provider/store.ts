@@ -104,7 +104,8 @@ export function createAgentStore(
       const { overrides, insertedComponents, registry, history, permissions } =
         get();
 
-      // Validate target exists
+      // Validate that the target exists — either as a registered Modifiable or as a
+      // previously inserted component instance (which uses instanceId as its targetId).
       if ("targetId" in action) {
         const inRegistry = action.targetId in registry;
         const inInserted = Object.values(insertedComponents)
@@ -114,6 +115,8 @@ export function createAgentStore(
           return `Unknown targetId: ${action.targetId}`;
         }
       }
+      // insertComponent skips this check because the container may not yet have any
+      // inserted children and its containerId comes from the Modifiable registry, not insertedComponents.
       if ("containerId" in action && action.type !== "insertComponent") {
         if (!(action.containerId in registry)) {
           return `Unknown containerId: ${action.containerId}`;
@@ -125,7 +128,8 @@ export function createAgentStore(
       const nextInserted = { ...insertedComponents };
 
       if (action.type === "applyStyle") {
-        // Filter to allowed props, then check values for injection patterns
+        // Filter to allowedStyleProps first, then sanitize each value for injection patterns.
+        // The prev slice captures only the keys being changed so undo restores precisely those keys.
         const sanitized: CSSProperties = {};
         for (const [k, v] of Object.entries(action.properties)) {
           if (!permissions.allowedStyleProps.includes(k)) continue;
@@ -207,6 +211,7 @@ export function createAgentStore(
         ];
       }
 
+      // Prepend the inverse so undo replays in LIFO order; trim to maxUndoDepth.
       const nextHistory = inverse
         ? [[inverse], ...history].slice(0, permissions.maxUndoDepth)
         : history;
@@ -226,6 +231,7 @@ export function createAgentStore(
       let nextInserted = { ...insertedComponents };
       let remaining = history;
 
+      // Walk the LIFO stack, replaying each group of inverse actions in order.
       for (let i = 0; i < steps && remaining.length > 0; i++) {
         const [inverses, ...rest] = remaining;
         remaining = rest;
