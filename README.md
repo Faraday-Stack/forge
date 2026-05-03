@@ -2,7 +2,9 @@
 
 A React SDK that lets users reshape your app's UI through a conversational agent — no redeploy required.
 
-Engineers instrument their app with `<Modifiable>` elements and a provider. Users open a floating chat widget, describe what they want changed, and the agent modifies the interface while its response streams in.
+Engineers instrument their app with `<Modifiable>` elements and a provider. Users open a floating chat widget, describe
+what they want changed, and the agent modifies the interface while its response streams in. All requests are routed
+through the Faraday SaaS backend — you don't run any agent infrastructure yourself.
 
 ## Installation
 
@@ -26,7 +28,8 @@ import "@faraday/ui-agent/style.css";
 function App() {
   return (
     <UIAgentProvider
-      endpoint="/api/ui-agent"
+      publishableKey={import.meta.env.VITE_FARADAY_PUBLISHABLE_KEY}
+      userToken={currentUser.faradayToken}
       permissions={{
         allowedStyleProps: [
           "color",
@@ -35,7 +38,7 @@ function App() {
           "padding",
           "borderRadius",
         ],
-        persist: "session",
+        persist: "user",
       }}
     >
       <Hero />
@@ -54,16 +57,56 @@ function Hero() {
 }
 ```
 
-Or use the declarative wrapper:
+## Authenticating the provider
+
+`UIAgentProvider` requires two credentials:
+
+| Prop             | Where it comes from                        | Notes                                                                                       |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `publishableKey` | Faraday dashboard → **Project → API keys** | Safe to ship in client bundles. Identifies your project, not your users.                    |
+| `userToken`      | Your backend, minted per logged-in user    | Short-lived JWT scoped to a single user. Mint it server-side and pass it to the React tree. |
 
 ```tsx
-<Modifiable
-  id="cta-button"
-  as="button"
-  defaultText="Sign up"
-  onClick={handleSignup}
-/>
+<UIAgentProvider
+  publishableKey="pk_live_…" // public, ships with the bundle
+  userToken={session.faradayToken} // private, minted per user on your backend
+>
+  {children}
+</UIAgentProvider>
 ```
+
+The provider throws at mount if `publishableKey` is missing, or if `publishableKey` is set without a `userToken` —
+both are required.
+
+### Getting a publishable key
+
+1. Sign in at [app.faraday.dev](https://app.faraday.dev).
+2. Create or select a project.
+3. Open **API keys** and copy the value prefixed with `pk_live_` (production) or `pk_test_` (test mode).
+4. Put it in an env var your bundler exposes to the client (e.g. `VITE_FARADAY_PUBLISHABLE_KEY`,
+   `NEXT_PUBLIC_FARADAY_PUBLISHABLE_KEY`).
+
+### Minting a user token
+
+User tokens are short-lived JWTs you generate on your backend using your **secret key** (kept server-side, never
+shipped). A typical flow:
+
+```ts
+// server — e.g. /api/faraday/token
+import { mintUserToken } from "@faraday/server";
+
+app.get("/api/faraday/token", requireAuth, async (req, res) => {
+  const token = await mintUserToken({
+    secretKey: process.env.FARADAY_SECRET_KEY!,
+    userId: req.user.id,
+    // optional: claims surfaced to the agent (org, role, plan, …)
+    claims: { orgId: req.user.orgId, role: req.user.role },
+  });
+  res.json({ token });
+});
+```
+
+Fetch the token after login and feed it to the provider. Refresh it on a timer or when the SDK reports an expired token.
 
 ## How elements are exposed to the agent
 
@@ -90,7 +133,8 @@ Both register the element in the agent's page snapshot on mount and unregister o
 
 ```tsx
 <UIAgentProvider
-  endpoint="/api/ui-agent"            // required — your backend proxy URL
+  publishableKey="pk_live_…"          // required — your project's publishable key
+  userToken={session.faradayToken}    // required — short-lived per-user JWT
   components={{ Card, Alert }}        // optional — components the agent can insert
   permissions={{
     allowedStyleProps: [...],         // CSS properties the agent is allowed to set
@@ -101,13 +145,18 @@ Both register the element in the agent's page snapshot on mount and unregister o
 >
 ```
 
+`persist: "user"` saves overrides to the Faraday backend keyed by `userToken`, so they follow the user across devices.
+`persist: "session"` keeps them in `sessionStorage`. `persist: "none"` discards on reload.
+
 ## Registering insertable components
 
-If you want the agent to be able to insert new components (not just restyle existing ones), pass them in the `components` registry:
+If you want the agent to be able to insert new components (not just restyle existing ones), pass them in the
+`components` registry:
 
 ```tsx
 <UIAgentProvider
-  endpoint="/api/ui-agent"
+  publishableKey={import.meta.env.VITE_FARADAY_PUBLISHABLE_KEY}
+  userToken={session.faradayToken}
   components={{
     Card: { component: Card, propsSchema: { title: "string", body: "string" } },
     Alert: { component: Alert, propsSchema: { variant: "info|warn|error", message: "string" } },
@@ -121,30 +170,6 @@ Mark the container where they should be inserted:
 <Modifiable id="sidebar" as="aside" type="container" />
 ```
 
-## Backend endpoint
-
-The SDK POSTs to your `endpoint` and expects a streaming response. Your backend is responsible for adding credentials and proxying to whichever LLM you use.
-
-**Request body:**
-
-```json
-{
-  "system": "<generated prompt with page snapshot>",
-  "tools": [...],
-  "messages": [{ "role": "user", "content": "Make the headline red" }]
-}
-```
-
-**Response** — stream newline-delimited JSON (or SSE `data:` lines):
-
-```
-{ "type": "text_delta", "delta": "Making the headline red..." }
-{ "type": "tool_use", "name": "applyStyle", "input": { "targetId": "hero-title", "properties": { "color": "#dc2626" } } }
-{ "type": "done" }
-```
-
-Tool calls are applied to the page immediately as they arrive, before the stream finishes.
-
 ## Available agent tools
 
 | Tool              | What it does                                   |
@@ -156,7 +181,8 @@ Tool calls are applied to the page immediately as they arrive, before the stream
 | `insertComponent` | Insert a registered component into a container |
 | `undo`            | Revert the last N actions                      |
 
-`applyStyle` only passes CSS keys listed in `allowedStyleProps` — everything else is dropped before it reaches the store.
+`applyStyle` only passes CSS keys listed in `allowedStyleProps` — everything else is dropped before it reaches the
+store.
 
 ## Development
 

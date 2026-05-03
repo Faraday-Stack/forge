@@ -348,7 +348,9 @@
   border: none;
   background: #f97316;
   color: #ffffff;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -365,7 +367,12 @@
   transform: scale(1.06);
 }
 
-.floatingExpandBtn:active {
+.floatingExpandBtn[data-dragging="true"] {
+  cursor: grabbing;
+  transform: scale(1.06);
+}
+
+.floatingExpandBtn:active:not([data-dragging="true"]) {
   transform: scale(0.95);
 }
 

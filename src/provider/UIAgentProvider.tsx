@@ -15,14 +15,16 @@ import { InlineEditOverlay } from "../widget/InlineEditOverlay";
  *
  * Operates in two modes — supply exactly one:
  * - **Self-hosted**: `endpoint` pointing at your backend's streaming route
- * - **SaaS**: `publishableKey` + `userToken` (throws if `userToken` is missing)
+ * - **SaaS**: `publishableKey` (with optional `userToken`)
+ *
+ * `userToken` is optional; when omitted it defaults to `null` and the backend applies a stricter
+ * anonymous rate limit.
  *
  * @throws if neither `publishableKey` nor `endpoint` is provided
- * @throws if `publishableKey` is set without a `userToken`
  */
 export function UIAgentProvider({
   publishableKey,
-  userToken,
+  userToken = null,
   endpoint,
   apiUrl,
   components = {},
@@ -32,12 +34,7 @@ export function UIAgentProvider({
 }: UIAgentProviderProps) {
   if (!publishableKey && !endpoint) {
     throw new Error(
-      "[Faraday] UIAgentProvider requires either `publishableKey` + `userToken` (SaaS mode) or `endpoint` (self-hosted mode)."
-    );
-  }
-  if (publishableKey && !userToken) {
-    throw new Error(
-      "[Faraday] UIAgentProvider: `userToken` is required when using `publishableKey`."
+      "[Faraday] UIAgentProvider requires either `publishableKey` (SaaS mode) or `endpoint` (self-hosted mode)."
     );
   }
   const storeRef = useRef<ReturnType<typeof createAgentStore> | null>(null);
@@ -74,7 +71,7 @@ export function UIAgentProvider({
     let cancelled = false;
     const connection = {
       ...(publishableKey !== undefined && { publishableKey }),
-      ...(userToken !== undefined && { userToken }),
+      userToken,
       ...(apiUrl !== undefined && { apiUrl }),
     };
     loadOverrides(connection)
@@ -97,7 +94,7 @@ export function UIAgentProvider({
   return (
     <AgentConnectionContext.Provider value={{
         ...(publishableKey !== undefined && { publishableKey }),
-        ...(userToken !== undefined && { userToken }),
+        userToken,
         ...(endpoint !== undefined && { endpoint }),
         ...(apiUrl !== undefined && { apiUrl }),
       }}>

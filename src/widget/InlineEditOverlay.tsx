@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import {
@@ -24,7 +24,26 @@ export function InlineEditOverlay() {
   const [collapsed, setCollapsed] = useState(true);
   const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(null);
   const [allRects, setAllRects] = useState<Record<string, DOMRect>>({});
+  const [userMoved, setUserMoved] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const dotRef = useRef<HTMLButtonElement | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+  const userMovedRef = useRef(false);
+  const dotPosRef = useRef<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    userMovedRef.current = userMoved;
+  }, [userMoved]);
+  useEffect(() => {
+    dotPosRef.current = dotPos;
+  }, [dotPos]);
 
   // Floating UI: anchor the chat panel below-right of the dot, with viewport flip
   const { refs, floatingStyles } = useFloating({
@@ -58,6 +77,21 @@ export function InlineEditOverlay() {
       }
 
       setAllRects(next);
+
+      if (userMovedRef.current) {
+        const cur = dotPosRef.current;
+        if (cur) {
+          const dotSize = 32;
+          const maxLeft = window.innerWidth - dotSize - 8;
+          const maxTop = window.innerHeight - dotSize - 8;
+          const clampedLeft = Math.max(8, Math.min(maxLeft, cur.left));
+          const clampedTop = Math.max(8, Math.min(maxTop, cur.top));
+          if (clampedLeft !== cur.left || clampedTop !== cur.top) {
+            setDotPos({ top: clampedTop, left: clampedLeft });
+          }
+        }
+        return;
+      }
 
       if (topRect) {
         const dotSize = 32;
@@ -102,6 +136,64 @@ export function InlineEditOverlay() {
 
   const onClose = useCallback(() => setCollapsed(true), []);
 
+  const DRAG_THRESHOLD = 4;
+  const DOT_SIZE = 32;
+
+  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const cur = dotPosRef.current;
+    if (!cur) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      offsetX: e.clientX - cur.left,
+      offsetY: e.clientY - cur.top,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    };
+  }, []);
+
+  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      setDragging(true);
+      setUserMoved(true);
+    }
+    const maxLeft = window.innerWidth - DOT_SIZE - 8;
+    const maxTop = window.innerHeight - DOT_SIZE - 8;
+    const left = Math.max(8, Math.min(maxLeft, e.clientX - drag.offsetX));
+    const top = Math.max(8, Math.min(maxTop, e.clientY - drag.offsetY));
+    setDotPos({ top, left });
+  }, []);
+
+  const onPointerUp = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const wasDrag = drag.moved;
+    dragRef.current = null;
+    setDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore — capture may have already been released
+    }
+    if (!wasDrag) {
+      setCollapsed((v) => !v);
+    }
+  }, []);
+
+  const onPointerCancel = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+  }, []);
+
   if (!dotPos) return null;
 
   return createPortal(
@@ -111,10 +203,14 @@ export function InlineEditOverlay() {
         type="button"
         className={styles.floatingExpandBtn}
         style={{ top: dotPos.top, left: dotPos.left }}
-        onClick={() => setCollapsed((v) => !v)}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        data-dragging={dragging ? "true" : undefined}
         aria-label={collapsed ? "Open Faraday editor" : "Close Faraday editor"}
         aria-expanded={!collapsed}
-        title="Open Faraday editor"
+        title="Drag to move, click to open Faraday editor"
       >
         {collapsed ? (
           <svg

@@ -1,4 +1,4 @@
-import type { ComponentPropsWithRef, ElementType } from "react";
+import { useEffect, useRef, type ComponentPropsWithRef, type ElementType } from "react";
 import { useStore } from "zustand";
 import { useModifiable } from "./useModifiable";
 import { useAgentStore } from "../provider/context";
@@ -45,6 +45,26 @@ export function Modifiable<T extends ElementType = "div">({
   const store = useAgentStore();
   const insertedList = useStore(store, (s) => s.insertedComponents[id] ?? []);
   const compRegistry = useStore(store, (s) => s.components);
+  const pulseToken = useStore(store, (s) => s.pulsingIds[id]);
+
+  const ref = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!pulseToken || !ref.current) return;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    ref.current.animate(
+      [
+        { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)" },
+        { transform: "scale(1.03)", boxShadow: "0 0 0 6px rgba(249, 115, 22, 0.35)" },
+        { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)" },
+      ],
+      { duration: 2000, iterations: 1, easing: "ease-in-out" },
+    );
+  }, [pulseToken]);
 
   if (!visible) return null;
 
@@ -61,7 +81,7 @@ export function Modifiable<T extends ElementType = "div">({
       : null;
 
   return (
-    <Tag id={id} style={{ ...externalStyle, ...style }} {...rest}>
+    <Tag ref={ref} id={id} style={{ ...externalStyle, ...style }} {...rest}>
       {renderedChildren}
       {insertedElements}
     </Tag>

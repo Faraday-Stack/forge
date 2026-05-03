@@ -52,11 +52,14 @@ export interface AgentState {
   messages: ChatMessage[];
   permissions: PermissionsConfig;
   components: Record<string, ComponentRegistryEntry>;
+  /** id → incrementing token. Bumped when an action affects the id; cleared 2s later. */
+  pulsingIds: Record<string, number>;
 
   register: (entry: ModifiableEntry) => void;
   unregister: (id: string) => void;
   apply: (action: Action, onAction?: (a: Action) => void) => string | null;
   undo: (steps?: number) => void;
+  markPulsing: (ids: string[]) => void;
   snapshot: () => PageSnapshot;
   appendMessage: (message: ChatMessage) => void;
   appendToLastMessage: (delta: string) => void;
@@ -90,6 +93,7 @@ export function createAgentStore(
     messages: [],
     permissions: resolved,
     components,
+    pulsingIds: {},
 
     register(entry) {
       set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
@@ -229,6 +233,17 @@ export function createAgentStore(
         insertedComponents: nextInserted,
         history: nextHistory,
       });
+
+      const affected: string[] = [];
+      if (action.type === "applyStyle" || action.type === "setText" || action.type === "setVisibility") {
+        affected.push(action.targetId);
+      } else if (action.type === "reorder") {
+        affected.push(action.containerId);
+      } else if (action.type === "insertComponent") {
+        affected.push(action.containerId, action.instanceId);
+      }
+      if (affected.length) get().markPulsing(affected);
+
       onAction?.(action);
       return null;
     },
@@ -238,12 +253,15 @@ export function createAgentStore(
       let nextOverrides = { ...overrides };
       let nextInserted = { ...insertedComponents };
       let remaining = history;
+      const touched: string[] = [];
 
       // Walk the LIFO stack, replaying each group of inverse actions in order.
       for (let i = 0; i < steps && remaining.length > 0; i++) {
         const [inverses, ...rest] = remaining;
         remaining = rest;
         for (const inv of inverses) {
+          if ("targetId" in inv) touched.push(inv.targetId);
+          else if ("containerId" in inv) touched.push(inv.containerId);
           if (inv.type === "applyStyle") {
             nextOverrides[inv.targetId] = {
               ...nextOverrides[inv.targetId],
@@ -284,6 +302,28 @@ export function createAgentStore(
         insertedComponents: nextInserted,
         history: remaining,
       });
+      if (touched.length) get().markPulsing(touched);
+    },
+
+    markPulsing(ids) {
+      set((state) => {
+        const next = { ...state.pulsingIds };
+        for (const id of ids) next[id] = (next[id] ?? 0) + 1;
+        return { pulsingIds: next };
+      });
+      const tokens: Record<string, number> = {};
+      const snap = get().pulsingIds;
+      for (const id of ids) tokens[id] = snap[id];
+      setTimeout(() => {
+        set((state) => {
+          const next = { ...state.pulsingIds };
+          for (const id of ids) {
+            // Only delete if no later mark superseded ours.
+            if (next[id] === tokens[id]) delete next[id];
+          }
+          return { pulsingIds: next };
+        });
+      }, 2000);
     },
 
     snapshot() {

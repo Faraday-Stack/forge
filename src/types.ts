@@ -124,8 +124,8 @@ export interface ComponentRegistryEntry {
 export interface AgentConnectionConfig {
   /** SaaS mode: publishable key issued by the Faraday dashboard. Requires `userToken`. */
   publishableKey?: string;
-  /** SaaS mode: JWT identifying the end user. Required when `publishableKey` is set. */
-  userToken?: string;
+  /** SaaS mode: JWT identifying the end user. When null/undefined the backend applies an anonymous (stricter) rate limit. */
+  userToken?: string | null;
   /** Self-hosted mode: full URL of your backend's streaming endpoint. */
   endpoint?: string;
   /** Override the default SaaS API URL (`https://api.faraday.ai/v1/stream`). */
