@@ -170,7 +170,7 @@ export interface AgentConnectionConfig {
  *
  * **Self-hosted** — provide `endpoint` pointing at your own backend:
  * ```tsx
- * <UIAgentProvider endpoint="https://myapp.com/api/agent">
+ * <UIAgentProvider endpoint="https://myapp.com/api/stream">
  * ```
  *
  * **SaaS** — provide `publishableKey` + `userToken` from the Faraday dashboard:

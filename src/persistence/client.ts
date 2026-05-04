@@ -15,11 +15,14 @@ function resolveBase(connection: AgentConnectionConfig): string {
 }
 
 function authHeaders(connection: AgentConnectionConfig): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Faraday-Key": connection.publishableKey ?? "",
-    Authorization: `Bearer ${connection.userToken ?? ""}`,
   };
+  if (connection.userToken) {
+    headers.Authorization = `Bearer ${connection.userToken}`;
+  }
+  return headers;
 }
 
 export async function saveOverrides(

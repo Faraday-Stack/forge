@@ -23,13 +23,16 @@ function resolveRequest(connection: AgentConnectionConfig): {
   headers: Record<string, string>;
 } {
   if (connection.publishableKey) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Faraday-Key": connection.publishableKey,
+    };
+    if (connection.userToken) {
+      headers.Authorization = `Bearer ${connection.userToken}`;
+    }
     return {
       url: connection.apiUrl ?? FARADAY_API_URL,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Faraday-Key": connection.publishableKey,
-        Authorization: `Bearer ${connection.userToken ?? ""}`,
-      },
+      headers,
     };
   }
   return {
