@@ -1,6 +1,10 @@
 import type { AgentStore } from "../provider/store";
 import type { AgentConnectionConfig, ChatMessage } from "../types";
-import { buildPageContext, buildSystemPrompt, TOOL_SCHEMA } from "../engine/snapshot";
+import {
+  buildPageContext,
+  buildSystemPrompt,
+  TOOL_SCHEMA,
+} from "../engine/snapshot";
 import { dispatchToolUse } from "../engine/apply";
 import { nanoid } from "../utils/nanoid";
 
@@ -161,7 +165,10 @@ export async function streamInlineEdit(options: {
     if (event.type === "text_delta" && event.delta) {
       assistantText += event.delta;
     } else if (event.type === "tool_use" && event.name && event.input) {
-      const err = dispatchToolUse(store, { name: event.name, input: event.input });
+      const err = dispatchToolUse(store, {
+        name: event.name,
+        input: event.input,
+      });
       if (!err) appliedAny = true;
     } else if (event.type === "error" && event.message) {
       throw new Error(event.message);

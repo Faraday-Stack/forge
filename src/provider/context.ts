@@ -17,3 +17,16 @@ export const AgentConnectionContext = createContext<AgentConnectionConfig>({});
 export function useAgentConnection(): AgentConnectionConfig {
   return useContext(AgentConnectionContext);
 }
+
+export type FormSubmitHandler = (
+  formId: string,
+  values: Record<string, FormDataEntryValue>,
+) => void | Promise<void>;
+
+export const AgentFormContext = createContext<FormSubmitHandler | undefined>(
+  undefined,
+);
+
+export function useFormSubmit(): FormSubmitHandler | undefined {
+  return useContext(AgentFormContext);
+}

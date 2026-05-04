@@ -1,6 +1,7 @@
 import type { AgentStore } from "../provider/store";
 import type { ModifiableContext, PageContext, PageSnapshot } from "../types";
 import { getDomSnippet, getElementSource } from "../utils/source";
+import { buildSpatialTree, renderTreeOutline } from "./spatialTree";
 import { TOOL_SCHEMA } from "./tools";
 
 export function buildSnapshot(store: AgentStore): PageSnapshot {
@@ -22,27 +23,32 @@ export function buildPageContext(store: AgentStore): PageContext {
   }
 
   const registry = store.getState().registry;
-  const modifiables: ModifiableContext[] = Object.values(registry).map((entry) => {
-    const el = document.getElementById(entry.id);
-    const ctx: ModifiableContext = { id: entry.id };
-    const source = getElementSource(el);
-    if (source) ctx.source = source;
-    const snippet = getDomSnippet(el);
-    if (snippet) ctx.domSnippet = snippet;
-    return ctx;
-  });
+  const modifiables: ModifiableContext[] = Object.values(registry).map(
+    (entry) => {
+      const el = document.getElementById(entry.id);
+      const ctx: ModifiableContext = { id: entry.id };
+      const source = getElementSource(el);
+      if (source) ctx.source = source;
+      const snippet = getDomSnippet(el);
+      if (snippet) ctx.domSnippet = snippet;
+      return ctx;
+    },
+  );
 
   return {
     url: window.location.href,
     route: window.location.pathname,
     userAgent: navigator?.userAgent,
     modifiables,
+    spatialTree: buildSpatialTree(store),
   };
 }
 
 export function buildSystemPrompt(store: AgentStore): string {
   const snap = buildSnapshot(store);
   const { allowedStyleProps } = store.getState().permissions;
+  const tree = buildSpatialTree(store);
+  const treeOutline = renderTreeOutline(tree);
 
   return [
     "You are a UI modification agent. The user wants to change their web app's interface.",
@@ -55,7 +61,34 @@ export function buildSystemPrompt(store: AgentStore): string {
     allowedStyleProps.join(", "),
     "Only use properties from this list — others will be silently ignored.",
     "",
-    "## Current page elements",
+    "## Page structure",
+    "Document order, top-to-bottom. Indentation = parent/child. Only ids that appear here exist.",
+    "```",
+    treeOutline || "(no modifiables registered yet)",
+    "```",
+    "",
+    "## Choosing where to insertComponent — strict rules",
+    "You can only insertComponent into an id marked `[container]` in the tree above. Wrong placement is the most common failure mode — read these rules carefully.",
+    "",
+    "**Decision procedure for a spatial request like \"add X below Y\":**",
+    "1. Find Y in the tree.",
+    '2. Look for a [container] in this priority order: (a) Y itself if Y is a [container] — pick `position` 0 for "above", end for "below", anywhere for "inside"; (b) Y\'s nearest sibling on the requested side that is a [container]; (c) Y\'s nearest [container] ancestor — and only if you can express the position relative to Y\'s index among that container\'s children.',
+    "3. If the only [container] available is geographically far from Y (different section, opposite side of the page, etc.), DO NOT use it as a fallback. Refuse instead, as described below.",
+    "",
+    "**When to refuse instead of insert:** no [container] exists near Y on the requested side; the only [container] available is in an unrelated part of the page; Y itself is not a [container] and nothing usable is nearby.",
+    "",
+    "**How to phrase a refusal.** Speak to a non-technical end user. NEVER mention components, props, JSX, ids, containers-by-name in code-voice, or what a developer would need to change.",
+    "Frame the limitation as \"the developers have only given me access to adding things in <specific places, in plain spatial language>.\" Then offer those available places as alternatives. Translate each available [container] id into a plain-English location based on what's around it in the tree (e.g. `below-header` → \"just under the navigation\"; an inserted form's container → \"inside the contact form\"; a sidebar container → \"in the right-hand sidebar\").",
+    "",
+    'Example: *"Sorry — the developers have only given me access to adding components just under the navigation, near the top of the page. I can\'t place something directly below the social-proof bar. Want me to add it near the top instead, or somewhere else I have access to?"*',
+    "",
+    "**Other rules:**",
+    "- Never invent a containerId. Only use ids that appear with `[container]` in the tree.",
+    "- Inserted-component instanceIds (shown as `[inserted ...]`) can be referenced for reorder / remove, but are not valid containers.",
+    "- Ids beginning with `__` are internal slots (e.g. notification toasts). Never place user-requested content there unless the user explicitly asked for a notification.",
+    "",
+    "## Modifiable details",
+    "Use this map to look up styles/text/etc. when you need precise current values.",
     "```json",
     JSON.stringify(snap.modifiables, null, 2),
     "```",
@@ -69,18 +102,16 @@ export function buildSystemPrompt(store: AgentStore): string {
           "",
         ].join("\n")
       : "",
-    "## Inserted components",
-    "```json",
-    JSON.stringify(snap.insertedComponents, null, 2),
-    "```",
-    "",
     "## Container child order (per container)",
     "```json",
     JSON.stringify(snap.containerOrder, null, 2),
     "```",
     "",
-    "Only target elements by the exact ids listed above.",
+    "Only target elements by the exact ids in the tree above.",
     "Only insert components that appear in the available components list.",
+    "",
+    "## Building forms",
+    "To build a form, first insertComponent FaradayForm into a parent container with a unique `formId`. The form auto-registers a Modifiable container whose id equals that `formId`. In a follow-up turn (after the user sees the form appear) you can insertComponent field types — FaradayTextInput, FaradayTextarea, FaradaySelect, FaradayCheckbox, FaradayRadioGroup, FaradayNumberInput, FaradayEmailInput — into that new container. Each field's `name` prop becomes the FormData key on submit.",
   ]
     .filter(Boolean)
     .join("\n");

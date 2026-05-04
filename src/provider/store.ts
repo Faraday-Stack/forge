@@ -251,7 +251,11 @@ export function createAgentStore(
       });
 
       const affected: string[] = [];
-      if (action.type === "applyStyle" || action.type === "setText" || action.type === "setVisibility") {
+      if (
+        action.type === "applyStyle" ||
+        action.type === "setText" ||
+        action.type === "setVisibility"
+      ) {
         affected.push(action.targetId);
       } else if (action.type === "reorder") {
         affected.push(action.containerId);
@@ -346,8 +350,13 @@ export function createAgentStore(
     },
 
     snapshot() {
-      const { registry, overrides, insertedComponents, components, containerOrder } =
-        get();
+      const {
+        registry,
+        overrides,
+        insertedComponents,
+        components,
+        containerOrder,
+      } = get();
       return {
         modifiables: Object.values(registry).map((entry) => {
           const style = overrides[entry.id]?.style;

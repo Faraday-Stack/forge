@@ -3,7 +3,12 @@ import { useStore } from "zustand";
 import { createPortal } from "react-dom";
 import { createAgentStore } from "./store";
 import type { AgentStore } from "./store";
-import { AgentStoreContext, AgentConnectionContext } from "./context";
+import {
+  AgentStoreContext,
+  AgentConnectionContext,
+  AgentFormContext,
+} from "./context";
+import type { FormSubmitHandler } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
 import { loadOverrides } from "../persistence/client";
@@ -30,11 +35,12 @@ export function UIAgentProvider({
   components = {},
   permissions = {},
   onAction,
+  onFormSubmit,
   children,
 }: UIAgentProviderProps) {
   if (!publishableKey && !endpoint) {
     throw new Error(
-      "[Faraday] UIAgentProvider requires either `publishableKey` (SaaS mode) or `endpoint` (self-hosted mode)."
+      "[Faraday] UIAgentProvider requires either `publishableKey` (SaaS mode) or `endpoint` (self-hosted mode).",
     );
   }
   const storeRef = useRef<ReturnType<typeof createAgentStore> | null>(null);
@@ -55,6 +61,15 @@ export function UIAgentProvider({
   const onActionRef = useRef(onAction);
   onActionRef.current = onAction;
 
+  // Stable form-submit handler: wraps the latest user-provided callback in a
+  // ref so children can capture it once without re-rendering on each prop change.
+  const onFormSubmitRef = useRef(onFormSubmit);
+  onFormSubmitRef.current = onFormSubmit;
+  const stableFormSubmit = useMemo<FormSubmitHandler>(
+    () => async (formId, values) => onFormSubmitRef.current?.(formId, values),
+    [],
+  );
+
   const store = storeRef.current;
 
   // Patch apply to thread through onAction
@@ -62,7 +77,10 @@ export function UIAgentProvider({
     const original = store.getState().apply;
     store.setState({
       apply: (action: Parameters<typeof original>[0]) =>
-        original(action, onActionRef.current ? (a) => onActionRef.current?.(a) : undefined),
+        original(
+          action,
+          onActionRef.current ? (a) => onActionRef.current?.(a) : undefined,
+        ),
     });
     return store;
   }, [store]);
@@ -92,16 +110,20 @@ export function UIAgentProvider({
   }, [publishableKey, userToken, apiUrl, patchedStore]);
 
   return (
-    <AgentConnectionContext.Provider value={{
+    <AgentConnectionContext.Provider
+      value={{
         ...(publishableKey !== undefined && { publishableKey }),
         userToken,
         ...(endpoint !== undefined && { endpoint }),
         ...(apiUrl !== undefined && { apiUrl }),
-      }}>
+      }}
+    >
       <AgentStoreContext.Provider value={patchedStore}>
-        {children}
-        <ToastLayer store={patchedStore} />
-        <InlineEditOverlay />
+        <AgentFormContext.Provider value={stableFormSubmit}>
+          {children}
+          <ToastLayer store={patchedStore} />
+          <InlineEditOverlay />
+        </AgentFormContext.Provider>
       </AgentStoreContext.Provider>
     </AgentConnectionContext.Provider>
   );
@@ -128,8 +150,7 @@ function ToastLayer({ store }: { store: AgentStore }) {
         gap: 8,
         zIndex: 2147483644,
         pointerEvents: "auto",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
       {insertedList.map((inst) => {

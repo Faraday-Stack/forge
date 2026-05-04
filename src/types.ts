@@ -52,6 +52,24 @@ export interface ModifiableContext {
 }
 
 /**
+ * A node in the page's spatial tree. Built at snapshot time from the live DOM —
+ * children are in document order so "above/below" maps to "earlier/later" in the
+ * children list.
+ */
+export interface SpatialNode {
+  id: string;
+  tag: string;
+  type: "text" | "element" | "container";
+  /** True for inserted-component instances (rather than registered Modifiables). */
+  isInserted?: true;
+  /** Up to ~40 characters of text content, for orientation. */
+  textPreview?: string;
+  /** Set when a registered Modifiable has no live DOM element at snapshot time. */
+  unmounted?: true;
+  children: SpatialNode[];
+}
+
+/**
  * Per-request context sent alongside `messages`/`system`/`tools`. The backend persists
  * this on the request log so the dashboard can show *where* a change happened — not just *what*.
  */
@@ -60,6 +78,8 @@ export interface PageContext {
   route?: string;
   userAgent?: string;
   modifiables: ModifiableContext[];
+  /** DOM-anchored tree of modifiables; mirrors what the LLM sees in the system prompt. */
+  spatialTree?: SpatialNode[];
 }
 
 /**
@@ -154,6 +174,15 @@ export interface UIAgentProviderProps extends AgentConnectionConfig {
   permissions?: Partial<PermissionsConfig>;
   /** Called after every action the agent successfully applies. Useful for analytics or server-side persistence. */
   onAction?: (action: Action) => void;
+  /**
+   * Called when a `FaradayForm` is submitted by the user. Receives the form's
+   * `formId` and the collected `FormData` values. Return a promise to block
+   * submission UI until it resolves; throw to surface an inline error.
+   */
+  onFormSubmit?: (
+    formId: string,
+    values: Record<string, FormDataEntryValue>,
+  ) => void | Promise<void>;
   children: React.ReactNode;
 }
 
