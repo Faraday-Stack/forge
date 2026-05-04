@@ -54,6 +54,8 @@ export interface AgentState {
   components: Record<string, ComponentRegistryEntry>;
   /** id → incrementing token. Bumped when an action affects the id; cleared 2s later. */
   pulsingIds: Record<string, number>;
+  /** containerId → desired order of child ids (mix of native Modifiable ids and inserted instanceIds). */
+  containerOrder: Record<string, string[]>;
 
   register: (entry: ModifiableEntry) => void;
   unregister: (id: string) => void;
@@ -67,10 +69,12 @@ export interface AgentState {
   getPersistableState: () => {
     overrides: Record<string, Override>;
     insertedComponents: Record<string, InsertedComponent[]>;
+    containerOrder: Record<string, string[]>;
   };
   hydrate: (snapshot: {
     overrides: Record<string, Override>;
     insertedComponents: Record<string, InsertedComponent[]>;
+    containerOrder?: Record<string, string[]>;
   }) => void;
 }
 
@@ -94,6 +98,7 @@ export function createAgentStore(
     permissions: resolved,
     components,
     pulsingIds: {},
+    containerOrder: {},
 
     register(entry) {
       set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
@@ -135,9 +140,11 @@ export function createAgentStore(
         }
       }
 
+      const { containerOrder } = get();
       let inverse: InverseAction | null = null;
       const nextOverrides = { ...overrides };
       const nextInserted = { ...insertedComponents };
+      let nextContainerOrder = containerOrder;
 
       if (action.type === "applyStyle") {
         // Filter to allowedStyleProps first, then sanitize each value for injection patterns.
@@ -186,23 +193,31 @@ export function createAgentStore(
           visible: action.visible,
         };
       } else if (action.type === "reorder") {
-        const current = (nextInserted[action.containerId] ?? []).map(
-          (c) => c.instanceId,
-        );
+        // Inverse is the previous full order (containerOrder if set, else inserted order).
+        const previous =
+          containerOrder[action.containerId] ??
+          (nextInserted[action.containerId] ?? []).map((c) => c.instanceId);
         inverse = {
           type: "reorder",
           containerId: action.containerId,
-          order: current,
+          order: previous,
         };
-        const sorted = (nextInserted[action.containerId] ?? [])
-          .slice()
-          .sort((a, b) => {
-            return (
-              action.order.indexOf(a.instanceId) -
-              action.order.indexOf(b.instanceId)
-            );
-          });
-        nextInserted[action.containerId] = sorted;
+        nextContainerOrder = {
+          ...nextContainerOrder,
+          [action.containerId]: action.order,
+        };
+        // Also sort the inserted-components array for ids the new order mentions,
+        // so render paths that read insertedComponents directly still see the new order.
+        const inserted = nextInserted[action.containerId] ?? [];
+        if (inserted.length > 0) {
+          const indexOf = (id: string) => {
+            const i = action.order.indexOf(id);
+            return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+          };
+          nextInserted[action.containerId] = inserted
+            .slice()
+            .sort((a, b) => indexOf(a.instanceId) - indexOf(b.instanceId));
+        }
       } else if (action.type === "insertComponent") {
         inverse = {
           type: "removeInserted",
@@ -231,6 +246,7 @@ export function createAgentStore(
       set({
         overrides: nextOverrides,
         insertedComponents: nextInserted,
+        containerOrder: nextContainerOrder,
         history: nextHistory,
       });
 
@@ -249,9 +265,10 @@ export function createAgentStore(
     },
 
     undo(steps = 1) {
-      const { history, overrides, insertedComponents } = get();
+      const { history, overrides, insertedComponents, containerOrder } = get();
       let nextOverrides = { ...overrides };
       let nextInserted = { ...insertedComponents };
+      let nextContainerOrder = { ...containerOrder };
       let remaining = history;
       const touched: string[] = [];
 
@@ -281,14 +298,15 @@ export function createAgentStore(
               visible: inv.visible,
             };
           } else if (inv.type === "reorder") {
+            nextContainerOrder[inv.containerId] = inv.order;
             const current = nextInserted[inv.containerId] ?? [];
-            const sorted = current.slice().sort((a, b) => {
-              return (
-                inv.order.indexOf(a.instanceId) -
-                inv.order.indexOf(b.instanceId)
-              );
-            });
-            nextInserted[inv.containerId] = sorted;
+            const indexOf = (id: string) => {
+              const i = inv.order.indexOf(id);
+              return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+            };
+            nextInserted[inv.containerId] = current
+              .slice()
+              .sort((a, b) => indexOf(a.instanceId) - indexOf(b.instanceId));
           } else if (inv.type === "removeInserted") {
             nextInserted[inv.containerId] = (
               nextInserted[inv.containerId] ?? []
@@ -300,6 +318,7 @@ export function createAgentStore(
       set({
         overrides: nextOverrides,
         insertedComponents: nextInserted,
+        containerOrder: nextContainerOrder,
         history: remaining,
       });
       if (touched.length) get().markPulsing(touched);
@@ -327,7 +346,8 @@ export function createAgentStore(
     },
 
     snapshot() {
-      const { registry, overrides, insertedComponents, components } = get();
+      const { registry, overrides, insertedComponents, components, containerOrder } =
+        get();
       return {
         modifiables: Object.values(registry).map((entry) => {
           const style = overrides[entry.id]?.style;
@@ -337,6 +357,7 @@ export function createAgentStore(
           };
         }),
         insertedComponents,
+        containerOrder,
         components: Object.entries(components).map(([name, entry]) => ({
           name,
           props: entry.propsSchema ?? {},
@@ -372,8 +393,8 @@ export function createAgentStore(
     },
 
     getPersistableState() {
-      const { overrides, insertedComponents } = get();
-      return { overrides, insertedComponents };
+      const { overrides, insertedComponents, containerOrder } = get();
+      return { overrides, insertedComponents, containerOrder };
     },
 
     hydrate(snapshot) {
@@ -388,7 +409,13 @@ export function createAgentStore(
       )) {
         if (containerId in registry) insertedComponents[containerId] = list;
       }
-      set({ overrides, insertedComponents, history: [] });
+      const containerOrder: Record<string, string[]> = {};
+      for (const [containerId, list] of Object.entries(
+        snapshot.containerOrder ?? {},
+      )) {
+        if (containerId in registry) containerOrder[containerId] = list;
+      }
+      set({ overrides, insertedComponents, containerOrder, history: [] });
     },
   }));
 }

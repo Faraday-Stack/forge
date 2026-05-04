@@ -318,8 +318,6 @@
 
 .modifiableHighlightLabel {
   position: absolute;
-  top: -10px;
-  left: 6px;
   background: #f97316;
   color: #ffffff;
   font-family:
@@ -330,11 +328,48 @@
   border-radius: 4px;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2147483645;
+  transition:
+    top 0.22s ease,
+    left 0.22s ease,
+    background 0.12s,
+    transform 0.08s;
+}
+
+.modifiableHighlightLabel:hover {
+  background: #ea580c;
+  transform: scale(1.06);
 }
 
 @keyframes faradayHighlightFade {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.modifiableHighlightPulsing {
+  animation: faradayHighlightPulse 2s ease-in-out 1;
+  border-width: 3px;
+}
+
+@keyframes faradayHighlightPulse {
+  0%, 100% {
+    border-color: #f97316;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
+    transform: scale(1);
+  }
+  25%, 75% {
+    border-color: #fb923c;
+    box-shadow: 0 0 0 14px rgba(249, 115, 22, 0.5);
+    transform: scale(1.04);
+  }
+  50% {
+    border-color: #f97316;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
+    transform: scale(1);
+  }
 }
 
 /* Dot — anchored to the topmost Modifiable, doubles as open/close toggle.
@@ -433,4 +468,97 @@
   color: #6b7280;
   text-align: center;
   font-family: inherit;
+}
+
+/* Drag-to-reorder affordance — applied to any Modifiable when the cursor is
+   near its border. The data attribute is toggled by useDragHandle.ts. */
+[data-faraday-grabbable="true"] {
+  cursor: grab;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.55);
+}
+
+[data-faraday-dragging="true"] {
+  cursor: grabbing;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.85),
+    0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+/* CSS-edit popover anchored to a clicked highlight label */
+.editPopover {
+  z-index: 2147483646;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.editGrid label {
+  font-size: 11px;
+  color: #374151;
+  font-family:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.editInput {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  background: #f9fafb;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.editInput:focus {
+  border-color: #f97316;
+  background: #fff;
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.editApplyBtn,
+.editResetBtn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+
+.editApplyBtn {
+  background: #111827;
+  color: #fff;
+}
+
+.editApplyBtn:hover {
+  background: #374151;
+}
+
+.editResetBtn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.editResetBtn:hover {
+  background: #e5e7eb;
 }

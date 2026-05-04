@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import {
@@ -21,9 +21,17 @@ import styles from "./widget.module.css";
 export function InlineEditOverlay() {
   const store = useAgentStore();
   const registry = useStore(store, (s) => s.registry);
+  const pulsingIds = useStore(store, (s) => s.pulsingIds);
+  const overrides = useStore(store, (s) => s.overrides);
+  const allowedStyleProps = useStore(
+    store,
+    (s) => s.permissions.allowedStyleProps,
+  );
   const [collapsed, setCollapsed] = useState(true);
   const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(null);
   const [allRects, setAllRects] = useState<Record<string, DOMRect>>({});
+  const [panelRect, setPanelRect] = useState<DOMRect | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [userMoved, setUserMoved] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dotRef = useRef<HTMLButtonElement | null>(null);
@@ -53,6 +61,14 @@ export function InlineEditOverlay() {
     whileElementsMounted: autoUpdate,
   });
 
+  // Floating UI: anchor the CSS-edit popover next to the clicked label.
+  const editFloating = useFloating({
+    placement: "bottom-start",
+    middleware: [offset(8), shift({ padding: 12 }), flip()],
+    open: editingId !== null,
+    whileElementsMounted: autoUpdate,
+  });
+
   // Track positions: rect of every Modifiable (for highlights) + dot anchor
   // (top-right of the topmost one). Recomputed on layout drift.
   useEffect(() => {
@@ -77,6 +93,9 @@ export function InlineEditOverlay() {
       }
 
       setAllRects(next);
+
+      const panelEl = refs.floating.current;
+      setPanelRect(panelEl ? panelEl.getBoundingClientRect() : null);
 
       if (userMovedRef.current) {
         const cur = dotPosRef.current;
@@ -242,23 +261,294 @@ export function InlineEditOverlay() {
       {!collapsed && (
         <>
           {/* Highlights: outline every modifiable so the user sees what they can edit */}
-          {Object.entries(allRects).map(([id, rect]) => (
-            <div key={id} className={styles.modifiableHighlight} style={{
-              position: "fixed",
-              top: rect.top - 2,
-              left: rect.left - 2,
-              width: rect.width + 4,
-              height: rect.height + 4,
-            }}>
-              <span className={styles.modifiableHighlightLabel}>#{id}</span>
-            </div>
-          ))}
-          <div ref={refs.setFloating} style={floatingStyles}>
+          {Object.entries(allRects).map(([id, rect]) => {
+            const labelPos = pickLabelPosition(id, rect, panelRect, dotPos);
+            return (
+              <div
+                key={pulsingIds[id] ? `${id}:${pulsingIds[id]}` : id}
+                className={
+                  pulsingIds[id]
+                    ? `${styles.modifiableHighlight} ${styles.modifiableHighlightPulsing}`
+                    : styles.modifiableHighlight
+                }
+                style={{
+                  position: "fixed",
+                  top: rect.top - 2,
+                  left: rect.left - 2,
+                  width: rect.width + 4,
+                  height: rect.height + 4,
+                }}
+              >
+                <button
+                  type="button"
+                  className={styles.modifiableHighlightLabel}
+                  style={{ top: labelPos.top, left: labelPos.left }}
+                  ref={editingId === id ? editFloating.refs.setReference : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingId((cur) => (cur === id ? null : id));
+                  }}
+                  aria-label={`Edit CSS for ${id}`}
+                  title={`Edit CSS for #${id}`}
+                >
+                  #{id}
+                </button>
+              </div>
+            );
+          })}
+          <div
+            ref={refs.setFloating}
+            style={{ ...floatingStyles, zIndex: 2147483646 }}
+          >
             <ChatPanel onClose={onClose} />
           </div>
+          {editingId && (
+            <EditPopover
+              key={editingId}
+              id={editingId}
+              floating={editFloating}
+              allowedProps={allowedStyleProps}
+              currentStyle={
+                (overrides[editingId]?.style as Record<string, string>) ?? {}
+              }
+              onApply={(properties) => {
+                store.getState().apply({
+                  type: "applyStyle",
+                  targetId: editingId,
+                  properties,
+                  scope: "element",
+                });
+              }}
+              onClose={() => setEditingId(null)}
+            />
+          )}
         </>
       )}
     </div>,
     document.body,
+  );
+}
+
+function rectsOverlap(
+  a: { top: number; left: number; right: number; bottom: number },
+  b: { top: number; left: number; right: number; bottom: number },
+): boolean {
+  return !(
+    a.right < b.left ||
+    a.left > b.right ||
+    a.bottom < b.top ||
+    a.top > b.bottom
+  );
+}
+
+/**
+ * Choose a corner of `highlight` to anchor the `#id` label to such that it
+ * doesn't overlap the chat panel or the floating dot. Returns `{top, left}`
+ * relative to the highlight box (which is the label's positioned ancestor).
+ * Falls back to the top-left corner.
+ */
+function pickLabelPosition(
+  id: string,
+  highlight: DOMRect,
+  panel: DOMRect | null,
+  dot: { top: number; left: number } | null,
+): { top: number; left: number } {
+  const labelW = id.length * 6.5 + 16;
+  const labelH = 16;
+  const offset = 6;
+  const yOffset = 10;
+
+  // The highlight is positioned at (highlight.left - 2, highlight.top - 2) with
+  // dimensions (highlight.width + 4, highlight.height + 4). The label uses
+  // position: absolute relative to that box.
+  const boxW = highlight.width + 4;
+  const boxH = highlight.height + 4;
+
+  const candidates: Array<{
+    relative: { top: number; left: number };
+    viewport: { top: number; left: number; right: number; bottom: number };
+  }> = [
+    // top-left
+    {
+      relative: { top: -yOffset, left: offset },
+      viewport: {
+        left: highlight.left + offset,
+        right: highlight.left + offset + labelW,
+        top: highlight.top - yOffset,
+        bottom: highlight.top - yOffset + labelH,
+      },
+    },
+    // top-right
+    {
+      relative: { top: -yOffset, left: boxW - offset - labelW - 4 },
+      viewport: {
+        right: highlight.right - offset,
+        left: highlight.right - offset - labelW,
+        top: highlight.top - yOffset,
+        bottom: highlight.top - yOffset + labelH,
+      },
+    },
+    // bottom-left
+    {
+      relative: { top: boxH - yOffset - 4, left: offset },
+      viewport: {
+        left: highlight.left + offset,
+        right: highlight.left + offset + labelW,
+        bottom: highlight.bottom + yOffset,
+        top: highlight.bottom + yOffset - labelH,
+      },
+    },
+    // bottom-right
+    {
+      relative: { top: boxH - yOffset - 4, left: boxW - offset - labelW - 4 },
+      viewport: {
+        right: highlight.right - offset,
+        left: highlight.right - offset - labelW,
+        bottom: highlight.bottom + yOffset,
+        top: highlight.bottom + yOffset - labelH,
+      },
+    },
+  ];
+
+  const dotRect = dot
+    ? { left: dot.left, top: dot.top, right: dot.left + 32, bottom: dot.top + 32 }
+    : null;
+
+  for (const c of candidates) {
+    const collides =
+      (panel && rectsOverlap(c.viewport, panel)) ||
+      (dotRect && rectsOverlap(c.viewport, dotRect));
+    if (!collides) return c.relative;
+  }
+  return candidates[0].relative;
+}
+
+interface EditPopoverProps {
+  id: string;
+  floating: ReturnType<typeof useFloating>;
+  allowedProps: string[];
+  currentStyle: Record<string, string>;
+  onApply: (properties: Record<string, string>) => void;
+  onClose: () => void;
+}
+
+function EditPopover({
+  id,
+  floating,
+  allowedProps,
+  currentStyle,
+  onApply,
+  onClose,
+}: EditPopoverProps) {
+  const [draft, setDraft] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const prop of allowedProps) init[prop] = currentStyle[prop] ?? "";
+    return init;
+  });
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss on outside click or Escape.
+  useEffect(() => {
+    function onDocPointerDown(e: PointerEvent) {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (popoverRef.current?.contains(target)) return;
+      // Don't close if user clicked the label itself; let the label's own onClick toggle.
+      const el = target as HTMLElement;
+      if (el.closest?.(`[data-faraday] button[aria-label^="Edit CSS for"]`)) return;
+      onClose();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDocPointerDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const apply = () => {
+    const properties: Record<string, string> = {};
+    for (const [k, v] of Object.entries(draft)) {
+      if (v !== (currentStyle[k] ?? "")) properties[k] = v;
+    }
+    if (Object.keys(properties).length === 0) {
+      onClose();
+      return;
+    }
+    onApply(properties);
+    onClose();
+  };
+
+  const reset = () => {
+    const cleared: Record<string, string> = {};
+    for (const k of Object.keys(currentStyle)) cleared[k] = "";
+    if (Object.keys(cleared).length === 0) {
+      onClose();
+      return;
+    }
+    onApply(cleared);
+    onClose();
+  };
+
+  return (
+    <div
+      ref={(el) => {
+        popoverRef.current = el;
+        floating.refs.setFloating(el);
+      }}
+      className={`${styles.inlinePopover} ${styles.editPopover}`}
+      style={floating.floatingStyles}
+      role="dialog"
+      aria-label={`Edit CSS for ${id}`}
+    >
+      <div className={styles.inlinePopoverHeader}>
+        <span className={styles.inlineTarget}>#{id}</span>
+        <button
+          type="button"
+          className={styles.inlineCloseBtn}
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div className={styles.editGrid}>
+        {allowedProps.map((prop) => (
+          <Fragment key={prop}>
+            <label htmlFor={`faraday-edit-${id}-${prop}`}>{prop}</label>
+            <input
+              id={`faraday-edit-${id}-${prop}`}
+              type="text"
+              className={styles.editInput}
+              value={draft[prop] ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, [prop]: e.target.value }))
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  apply();
+                }
+              }}
+              placeholder={currentStyle[prop] ?? ""}
+            />
+          </Fragment>
+        ))}
+      </div>
+      <div className={styles.editActions}>
+        <button type="button" className={styles.editResetBtn} onClick={reset}>
+          Reset
+        </button>
+        <button type="button" className={styles.editApplyBtn} onClick={apply}>
+          Apply
+        </button>
+      </div>
+    </div>
   );
 }

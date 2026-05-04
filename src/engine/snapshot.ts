@@ -74,6 +74,11 @@ export function buildSystemPrompt(store: AgentStore): string {
     JSON.stringify(snap.insertedComponents, null, 2),
     "```",
     "",
+    "## Container child order (per container)",
+    "```json",
+    JSON.stringify(snap.containerOrder, null, 2),
+    "```",
+    "",
     "Only target elements by the exact ids listed above.",
     "Only insert components that appear in the available components list.",
   ]

@@ -92,6 +92,8 @@ export type InverseAction =
 export interface PageSnapshot {
   modifiables: Array<ModifiableEntry & { currentText?: string; currentStyle?: CSSProperties }>;
   insertedComponents: Record<string, InsertedComponent[]>;
+  /** Per-container child order. Ids may be native Modifiable ids or inserted instanceIds. */
+  containerOrder: Record<string, string[]>;
   /** Available components the agent may insert, with their prop schemas. */
   components: Array<{ name: string; props: Record<string, string> }>;
 }

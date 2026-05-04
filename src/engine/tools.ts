@@ -51,7 +51,7 @@ export const TOOL_SCHEMA = [
   {
     name: "reorder",
     description:
-      "Reorder inserted components inside a container by providing a new order of instanceIds.",
+      "Reorder children of a container by providing a new order of child ids. Ids may be native Modifiable ids, inserted-component instanceIds, or any combination — they all share a single ordering. Ids not listed keep their relative source order at the end.",
     input_schema: {
       type: "object",
       properties: {
