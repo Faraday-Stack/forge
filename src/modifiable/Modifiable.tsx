@@ -57,6 +57,7 @@ export function Modifiable<T extends ElementType = "div">({
   const compRegistry = useStore(store, (s) => s.components);
   const pulseToken = useStore(store, (s) => s.pulsingIds[id]);
   const containerOrder = useStore(store, (s) => s.containerOrder[id]);
+  const injections = useStore(store, (s) => s.injections[id] ?? []);
 
   const ref = useRef<HTMLElement | null>(null);
 
@@ -152,9 +153,30 @@ export function Modifiable<T extends ElementType = "div">({
 
   if (!visible) return null;
 
+  // Group agent-injected HTML by where it should go relative to this element.
+  const injBefore = injections.filter((i) => i.position === "before");
+  const injAfter = injections.filter((i) => i.position === "after");
+  const injInsideStart = injections.filter((i) => i.position === "inside-start");
+  const injInsideEnd = injections.filter((i) => i.position === "inside-end");
+
+  const renderInjection = (i: { injectionId: string; html: string }) => (
+    <span
+      key={i.injectionId}
+      data-faraday-injection={i.injectionId}
+      style={{ display: "contents" }}
+      dangerouslySetInnerHTML={{ __html: i.html }}
+    />
+  );
+
   return (
-    <Tag ref={ref} id={id} style={{ ...externalStyle, ...style }} {...rest}>
-      {renderedChildren}
-    </Tag>
+    <>
+      {injBefore.map(renderInjection)}
+      <Tag ref={ref} id={id} style={{ ...externalStyle, ...style }} {...rest}>
+        {injInsideStart.map(renderInjection)}
+        {renderedChildren}
+        {injInsideEnd.map(renderInjection)}
+      </Tag>
+      {injAfter.map(renderInjection)}
+    </>
   );
 }

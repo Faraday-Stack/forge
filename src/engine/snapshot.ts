@@ -112,6 +112,15 @@ export function buildSystemPrompt(store: AgentStore): string {
     "",
     "## Building forms",
     "To build a form, first insertComponent FaradayForm into a parent container with a unique `formId`. The form auto-registers a Modifiable container whose id equals that `formId`. In a follow-up turn (after the user sees the form appear) you can insertComponent field types — FaradayTextInput, FaradayTextarea, FaradaySelect, FaradayCheckbox, FaradayRadioGroup, FaradayNumberInput, FaradayEmailInput — into that new container. Each field's `name` prop becomes the FormData key on submit.",
+    "",
+    "## injectHTML — for anything not in the component registry",
+    "When the user asks for something the registry doesn't include — a chart, graph, sparkline, gauge, custom widget, decorative SVG, badge with arbitrary shapes — DO NOT refuse. Use `injectHTML` to write the markup yourself.",
+    "- Targets ANY id in the tree (containers OR regular elements). Container restriction does NOT apply.",
+    "- Use inline SVG for charts/graphs (e.g. `<svg width=...><rect .../></svg>`). Use inline styles for layout. Class names are not honored.",
+    "- Pick `position`: `before`/`after` to place adjacent to the target, `inside-start`/`inside-end` to nest inside it.",
+    "- Generate complete, polished, on-brand markup — match colors and spacing to the surrounding page when possible.",
+    "- The markup is sanitized: no `<script>`, no `on*=` event handlers, no `javascript:` URLs.",
+    "Example for \"add a small bar chart next to the CTA button\": call injectHTML with targetId of the CTA button, position `after`, and an html field containing inline SVG bars.",
   ]
     .filter(Boolean)
     .join("\n");

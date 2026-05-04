@@ -84,6 +84,33 @@ export const TOOL_SCHEMA = [
     },
   },
   {
+    name: "injectHTML",
+    description:
+      "Inject inline HTML/SVG markup relative to ANY modifiable element (container or not). Use this when the user asks for something not in the component registry — charts, graphs, custom widgets, decorative SVG, badges with arbitrary shapes. You write the markup yourself; no pre-built component is required. Markup is sanitized server-side: <script> tags, on* event handlers, and javascript: URLs are stripped.",
+    input_schema: {
+      type: "object",
+      properties: {
+        targetId: {
+          type: "string",
+          description: "Id of any modifiable element to anchor against.",
+        },
+        html: {
+          type: "string",
+          description:
+            "The raw HTML or SVG markup to inject. Prefer inline SVG for charts. Inline styles are allowed; class names are not.",
+        },
+        position: {
+          type: "string",
+          enum: ["before", "after", "inside-start", "inside-end"],
+          default: "after",
+          description:
+            "Where to place the markup relative to the target element. 'after' renders adjacent below/right; 'inside-end' appends within the element.",
+        },
+      },
+      required: ["targetId", "html"],
+    },
+  },
+  {
     name: "undo",
     description: "Undo the last N actions.",
     input_schema: {

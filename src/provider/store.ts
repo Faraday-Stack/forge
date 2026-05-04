@@ -11,7 +11,9 @@ import type {
   PermissionsConfig,
   ComponentRegistryEntry,
   ChatMessage,
+  HtmlInjection,
 } from "../types";
+import { sanitizeHtmlMarkup } from "../engine/sanitize";
 
 const DEFAULT_PERMISSIONS: PermissionsConfig = {
   allowedStyleProps: [
@@ -56,6 +58,8 @@ export interface AgentState {
   pulsingIds: Record<string, number>;
   /** containerId → desired order of child ids (mix of native Modifiable ids and inserted instanceIds). */
   containerOrder: Record<string, string[]>;
+  /** targetId → list of injected HTML/SVG fragments rendered around the element. */
+  injections: Record<string, HtmlInjection[]>;
 
   register: (entry: ModifiableEntry) => void;
   unregister: (id: string) => void;
@@ -70,11 +74,13 @@ export interface AgentState {
     overrides: Record<string, Override>;
     insertedComponents: Record<string, InsertedComponent[]>;
     containerOrder: Record<string, string[]>;
+    injections: Record<string, HtmlInjection[]>;
   };
   hydrate: (snapshot: {
     overrides: Record<string, Override>;
     insertedComponents: Record<string, InsertedComponent[]>;
     containerOrder?: Record<string, string[]>;
+    injections?: Record<string, HtmlInjection[]>;
   }) => void;
 }
 
@@ -99,6 +105,7 @@ export function createAgentStore(
     components,
     pulsingIds: {},
     containerOrder: {},
+    injections: {},
 
     register(entry) {
       set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
@@ -140,11 +147,12 @@ export function createAgentStore(
         }
       }
 
-      const { containerOrder } = get();
+      const { containerOrder, injections } = get();
       let inverse: InverseAction | null = null;
       const nextOverrides = { ...overrides };
       const nextInserted = { ...insertedComponents };
       let nextContainerOrder = containerOrder;
+      let nextInjections = injections;
 
       if (action.type === "applyStyle") {
         // Filter to allowedStyleProps first, then sanitize each value for injection patterns.
@@ -236,6 +244,22 @@ export function createAgentStore(
           inserted,
           ...existing.slice(action.position),
         ];
+      } else if (action.type === "injectHTML") {
+        const cleanHtml = sanitizeHtmlMarkup(action.html);
+        if (!cleanHtml) {
+          return "injectHTML: markup empty after sanitization";
+        }
+        const next: HtmlInjection = {
+          injectionId: action.injectionId,
+          targetId: action.targetId,
+          html: cleanHtml,
+          position: action.position,
+        };
+        nextInjections = {
+          ...nextInjections,
+          [action.targetId]: [...(nextInjections[action.targetId] ?? []), next],
+        };
+        inverse = { type: "removeInjection", injectionId: action.injectionId };
       }
 
       // Prepend the inverse so undo replays in LIFO order; trim to maxUndoDepth.
@@ -247,6 +271,7 @@ export function createAgentStore(
         overrides: nextOverrides,
         insertedComponents: nextInserted,
         containerOrder: nextContainerOrder,
+        injections: nextInjections,
         history: nextHistory,
       });
 
@@ -261,6 +286,8 @@ export function createAgentStore(
         affected.push(action.containerId);
       } else if (action.type === "insertComponent") {
         affected.push(action.containerId, action.instanceId);
+      } else if (action.type === "injectHTML") {
+        affected.push(action.targetId);
       }
       if (affected.length) get().markPulsing(affected);
 
@@ -269,10 +296,11 @@ export function createAgentStore(
     },
 
     undo(steps = 1) {
-      const { history, overrides, insertedComponents, containerOrder } = get();
+      const { history, overrides, insertedComponents, containerOrder, injections } = get();
       let nextOverrides = { ...overrides };
       let nextInserted = { ...insertedComponents };
       let nextContainerOrder = { ...containerOrder };
+      let nextInjections = { ...injections };
       let remaining = history;
       const touched: string[] = [];
 
@@ -315,6 +343,16 @@ export function createAgentStore(
             nextInserted[inv.containerId] = (
               nextInserted[inv.containerId] ?? []
             ).filter((c) => c.instanceId !== inv.instanceId);
+          } else if (inv.type === "removeInjection") {
+            for (const tId of Object.keys(nextInjections)) {
+              const filtered = nextInjections[tId].filter(
+                (j) => j.injectionId !== inv.injectionId,
+              );
+              if (filtered.length !== nextInjections[tId].length) {
+                touched.push(tId);
+                nextInjections[tId] = filtered;
+              }
+            }
           }
         }
       }
@@ -323,6 +361,7 @@ export function createAgentStore(
         overrides: nextOverrides,
         insertedComponents: nextInserted,
         containerOrder: nextContainerOrder,
+        injections: nextInjections,
         history: remaining,
       });
       if (touched.length) get().markPulsing(touched);
@@ -402,8 +441,8 @@ export function createAgentStore(
     },
 
     getPersistableState() {
-      const { overrides, insertedComponents, containerOrder } = get();
-      return { overrides, insertedComponents, containerOrder };
+      const { overrides, insertedComponents, containerOrder, injections } = get();
+      return { overrides, insertedComponents, containerOrder, injections };
     },
 
     hydrate(snapshot) {
@@ -424,7 +463,14 @@ export function createAgentStore(
       )) {
         if (containerId in registry) containerOrder[containerId] = list;
       }
-      set({ overrides, insertedComponents, containerOrder, history: [] });
+      const injections: Record<string, HtmlInjection[]> = {};
+      for (const [targetId, list] of Object.entries(
+        (snapshot as { injections?: Record<string, HtmlInjection[]> })
+          .injections ?? {},
+      )) {
+        if (targetId in registry) injections[targetId] = list;
+      }
+      set({ overrides, insertedComponents, containerOrder, injections, history: [] });
     },
   }));
 }

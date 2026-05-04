@@ -92,12 +92,22 @@ export interface PageContext {
  * - `insertComponent` — inserts a registered component into a container
  * - `undo` — replays the last N inverse actions from the history stack
  */
+export type InjectionPosition = "before" | "after" | "inside-start" | "inside-end";
+
+export interface HtmlInjection {
+  injectionId: string;
+  targetId: string;
+  html: string;
+  position: InjectionPosition;
+}
+
 export type Action =
   | { type: "applyStyle"; targetId: string; properties: CSSProperties; scope?: "element" | "descendants" }
   | { type: "setText"; targetId: string; text: string }
   | { type: "setVisibility"; targetId: string; visible: boolean }
   | { type: "reorder"; containerId: string; order: string[] }
   | { type: "insertComponent"; containerId: string; componentName: string; props: Record<string, unknown>; position: number; instanceId: string }
+  | { type: "injectHTML"; targetId: string; html: string; position: InjectionPosition; injectionId: string }
   | { type: "undo"; steps?: number };
 
 /** Inverse actions stored in the undo history. Each forward action computes its inverse before committing. */
@@ -106,7 +116,8 @@ export type InverseAction =
   | { type: "setText"; targetId: string; text: string }
   | { type: "setVisibility"; targetId: string; visible: boolean }
   | { type: "reorder"; containerId: string; order: string[] }
-  | { type: "removeInserted"; containerId: string; instanceId: string };
+  | { type: "removeInserted"; containerId: string; instanceId: string }
+  | { type: "removeInjection"; injectionId: string };
 
 /** Full page state sent to the LLM as context. Built by `buildSnapshot()` before each request. */
 export interface PageSnapshot {

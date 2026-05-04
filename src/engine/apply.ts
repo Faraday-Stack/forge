@@ -59,6 +59,22 @@ export function dispatchToolUse(
         instanceId: nanoid(),
       };
       break;
+    case "injectHTML": {
+      const pos = (tool.input.position as string) ?? "after";
+      const allowed = ["before", "after", "inside-start", "inside-end"];
+      action = {
+        type: "injectHTML",
+        targetId: tool.input.targetId as string,
+        html: tool.input.html as string,
+        position: (allowed.includes(pos) ? pos : "after") as
+          | "before"
+          | "after"
+          | "inside-start"
+          | "inside-end",
+        injectionId: nanoid(),
+      };
+      break;
+    }
     case "undo":
       action = { type: "undo", steps: (tool.input.steps as number) ?? 1 }; // default 1 step
       break;
