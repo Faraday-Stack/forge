@@ -1,6 +1,6 @@
 # IMPROVEMENTS.md
 
-Living roadmap for the `@faraday/ui-agent` package. Order roughly reflects priority — the highest-impact, most-frequently-hit issues sit at the top.
+Living roadmap for the `@faraday-stack/forge` package. Order roughly reflects priority — the highest-impact, most-frequently-hit issues sit at the top.
 
 ---
 

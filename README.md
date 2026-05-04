@@ -1,4 +1,4 @@
-# @faraday/ui-agent
+# @faraday-stack/forge
 
 A React SDK that lets users reshape your app's UI through a conversational agent — no redeploy required.
 
@@ -9,7 +9,7 @@ through the Faraday SaaS backend — you don't run any agent infrastructure your
 ## Installation
 
 ```bash
-pnpm add @faraday/ui-agent
+pnpm add @faraday-stack/forge
 ```
 
 Peer dependencies: `react >=18`, `react-dom >=18`.
@@ -22,8 +22,8 @@ import {
   UIAgentLauncher,
   Modifiable,
   useModifiable,
-} from "@faraday/ui-agent";
-import "@faraday/ui-agent/style.css";
+} from "@faraday-stack/forge";
+import "@faraday-stack/forge/style.css";
 
 function App() {
   return (
@@ -191,4 +191,19 @@ pnpm build          # build to dist/
 pnpm dev            # watch mode
 pnpm test           # run tests (jsdom)
 pnpm typecheck      # tsc --noEmit
+pnpm lint           # eslint src
+pnpm lint:publish   # publint — validates published metadata
+pnpm check:exports  # arethetypeswrong — validates dist resolution
 ```
+
+## Releasing
+
+Releases are driven by [Changesets](https://github.com/changesets/changesets). When you make a user-visible change to this package:
+
+```bash
+pnpm changeset
+```
+
+Pick `patch`, `minor`, or `major` and write a one-line consumer-facing summary. Commit the generated `.changeset/*.md` file with your PR.
+
+After your PR merges to `main`, the `release` workflow opens (or updates) a **Version Packages** PR that bumps `package.json` and rewrites `CHANGELOG.md`. Merging that PR publishes to npm with provenance and creates a GitHub Release. No manual `npm publish` needed.

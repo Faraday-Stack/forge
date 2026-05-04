@@ -1,33 +1,75 @@
 {
-  "name": "@faraday/ui-agent",
+  "name": "@faraday-stack/forge",
   "version": "0.1.0",
   "description": "Let users dynamically modify your React app's UI via a conversational agent",
+  "license": "MIT",
+  "author": "Faraday",
+  "homepage": "https://github.com/oscjac/faraday/tree/main/package#readme",
+  "bugs": {
+    "url": "https://github.com/oscjac/faraday/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oscjac/faraday.git",
+    "directory": "package"
+  },
+  "keywords": [
+    "react",
+    "ui",
+    "agent",
+    "llm",
+    "conversational-ui",
+    "no-code",
+    "modifiable",
+    "faraday"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js",
-      "require": "./dist/testing/index.cjs"
+      "import": {
+        "types": "./dist/testing/index.d.ts",
+        "default": "./dist/testing/index.js"
+      },
+      "require": {
+        "types": "./dist/testing/index.d.cts",
+        "default": "./dist/testing/index.cjs"
+      }
     },
     "./style.css": "./dist/style.css"
   },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/build-cjs-types.mjs",
     "dev": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:publish": "publint",
+    "check:exports": "attw --pack . --exclude-entrypoints ./style.css --ignore-rules no-resolution",
+    "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -38,16 +80,24 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.17.0",
+    "@eslint/js": "^9.13.0",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.13.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.11.0",
     "jsdom": "^24.0.0",
+    "publint": "^0.2.12",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.12.0",
     "vite": "^5.4.21",
     "vite-plugin-dts": "^5.0.0",
     "vitest": "^1.6.0"
