@@ -45,6 +45,30 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // Listen for `@id` mentions dispatched by InlineEditOverlay's labels.
+  // Append `#id ` to whatever the user has typed, focus, and place caret at end.
+  useEffect(() => {
+    function onMention(e: Event) {
+      const ce = e as CustomEvent<{ id: string }>;
+      const id = ce.detail?.id;
+      if (!id) return;
+      const token = `#${id} `;
+      setInput((cur) => {
+        if (cur.includes(token.trim())) return cur;
+        const sep = cur.length === 0 || cur.endsWith(" ") ? "" : " ";
+        return cur + sep + token;
+      });
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      });
+    }
+    window.addEventListener("faraday:mention", onMention);
+    return () => window.removeEventListener("faraday:mention", onMention);
+  }, []);
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();

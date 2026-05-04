@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import {
@@ -22,16 +22,10 @@ export function InlineEditOverlay() {
   const store = useAgentStore();
   const registry = useStore(store, (s) => s.registry);
   const pulsingIds = useStore(store, (s) => s.pulsingIds);
-  const overrides = useStore(store, (s) => s.overrides);
-  const allowedStyleProps = useStore(
-    store,
-    (s) => s.permissions.allowedStyleProps,
-  );
   const [collapsed, setCollapsed] = useState(true);
   const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(null);
   const [allRects, setAllRects] = useState<Record<string, DOMRect>>({});
   const [panelRect, setPanelRect] = useState<DOMRect | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [userMoved, setUserMoved] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dotRef = useRef<HTMLButtonElement | null>(null);
@@ -58,14 +52,6 @@ export function InlineEditOverlay() {
     placement: "bottom-end",
     middleware: [offset(12), shift({ padding: 16 }), flip()],
     open: !collapsed,
-    whileElementsMounted: autoUpdate,
-  });
-
-  // Floating UI: anchor the CSS-edit popover next to the clicked label.
-  const editFloating = useFloating({
-    placement: "bottom-start",
-    middleware: [offset(8), shift({ padding: 12 }), flip()],
-    open: editingId !== null,
     whileElementsMounted: autoUpdate,
   });
 
@@ -282,14 +268,15 @@ export function InlineEditOverlay() {
                 <button
                   type="button"
                   className={styles.modifiableHighlightLabel}
-                  style={{ top: labelPos.top, left: labelPos.left }}
-                  ref={editingId === id ? editFloating.refs.setReference : undefined}
+                  style={{ top: labelPos.top, left: labelPos.left, cursor: "pointer" }}
+                  title={`Mention #${id} in the chat`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setEditingId((cur) => (cur === id ? null : id));
+                    setCollapsed(false);
+                    window.dispatchEvent(
+                      new CustomEvent("faraday:mention", { detail: { id } }),
+                    );
                   }}
-                  aria-label={`Edit CSS for ${id}`}
-                  title={`Edit CSS for #${id}`}
                 >
                   #{id}
                 </button>
@@ -302,26 +289,6 @@ export function InlineEditOverlay() {
           >
             <ChatPanel onClose={onClose} />
           </div>
-          {editingId && (
-            <EditPopover
-              key={editingId}
-              id={editingId}
-              floating={editFloating}
-              allowedProps={allowedStyleProps}
-              currentStyle={
-                (overrides[editingId]?.style as Record<string, string>) ?? {}
-              }
-              onApply={(properties) => {
-                store.getState().apply({
-                  type: "applyStyle",
-                  targetId: editingId,
-                  properties,
-                  scope: "element",
-                });
-              }}
-              onClose={() => setEditingId(null)}
-            />
-          )}
         </>
       )}
     </div>,
@@ -423,132 +390,3 @@ function pickLabelPosition(
   return candidates[0].relative;
 }
 
-interface EditPopoverProps {
-  id: string;
-  floating: ReturnType<typeof useFloating>;
-  allowedProps: string[];
-  currentStyle: Record<string, string>;
-  onApply: (properties: Record<string, string>) => void;
-  onClose: () => void;
-}
-
-function EditPopover({
-  id,
-  floating,
-  allowedProps,
-  currentStyle,
-  onApply,
-  onClose,
-}: EditPopoverProps) {
-  const [draft, setDraft] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const prop of allowedProps) init[prop] = currentStyle[prop] ?? "";
-    return init;
-  });
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-
-  // Dismiss on outside click or Escape.
-  useEffect(() => {
-    function onDocPointerDown(e: PointerEvent) {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (popoverRef.current?.contains(target)) return;
-      // Don't close if user clicked the label itself; let the label's own onClick toggle.
-      const el = target as HTMLElement;
-      if (el.closest?.(`[data-faraday] button[aria-label^="Edit CSS for"]`)) return;
-      onClose();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("pointerdown", onDocPointerDown, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDocPointerDown, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  const apply = () => {
-    const properties: Record<string, string> = {};
-    for (const [k, v] of Object.entries(draft)) {
-      if (v !== (currentStyle[k] ?? "")) properties[k] = v;
-    }
-    if (Object.keys(properties).length === 0) {
-      onClose();
-      return;
-    }
-    onApply(properties);
-    onClose();
-  };
-
-  const reset = () => {
-    const cleared: Record<string, string> = {};
-    for (const k of Object.keys(currentStyle)) cleared[k] = "";
-    if (Object.keys(cleared).length === 0) {
-      onClose();
-      return;
-    }
-    onApply(cleared);
-    onClose();
-  };
-
-  return (
-    <div
-      ref={(el) => {
-        popoverRef.current = el;
-        floating.refs.setFloating(el);
-      }}
-      className={`${styles.inlinePopover} ${styles.editPopover}`}
-      style={floating.floatingStyles}
-      role="dialog"
-      aria-label={`Edit CSS for ${id}`}
-    >
-      <div className={styles.inlinePopoverHeader}>
-        <span className={styles.inlineTarget}>#{id}</span>
-        <button
-          type="button"
-          className={styles.inlineCloseBtn}
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      </div>
-      <div className={styles.editGrid}>
-        {allowedProps.map((prop) => (
-          <Fragment key={prop}>
-            <label htmlFor={`faraday-edit-${id}-${prop}`}>{prop}</label>
-            <input
-              id={`faraday-edit-${id}-${prop}`}
-              type="text"
-              className={styles.editInput}
-              value={draft[prop] ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, [prop]: e.target.value }))
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  apply();
-                }
-              }}
-              placeholder={currentStyle[prop] ?? ""}
-            />
-          </Fragment>
-        ))}
-      </div>
-      <div className={styles.editActions}>
-        <button type="button" className={styles.editResetBtn} onClick={reset}>
-          Reset
-        </button>
-        <button type="button" className={styles.editApplyBtn} onClick={apply}>
-          Apply
-        </button>
-      </div>
-    </div>
-  );
-}
