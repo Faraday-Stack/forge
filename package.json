@@ -1,5 +1,5 @@
 {
-  "name": "@faraday/ui-agent",
+  "name": "@faraday-stack/forge",
   "version": "0.1.0",
   "description": "Let users dynamically modify your React app's UI via a conversational agent",
   "license": "MIT",
