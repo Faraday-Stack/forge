@@ -30,6 +30,21 @@ export function sanitizeStyleProps(
 }
 
 /**
+ * Normalize and validate a CSS custom-property name. Accepts names with or
+ * without the leading `--` and returns the canonical `--name` form, or `null`
+ * if the name is malformed. CSS custom properties allow letters, digits,
+ * underscores, and hyphens; we forbid whitespace and any characters that could
+ * close out a `style` attribute or selector.
+ */
+export function sanitizeCssVarName(raw: string): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().replace(/^--/, "");
+  if (!trimmed) return null;
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed)) return null;
+  return `--${trimmed}`;
+}
+
+/**
  * Strip dangerous patterns from agent-provided HTML markup before it's
  * rendered via dangerouslySetInnerHTML. This is a small, deliberately strict
  * allowlist — the agent should be writing inline SVG / static markup, never

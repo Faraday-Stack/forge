@@ -24,6 +24,9 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const messages = useStore(store, (s) => s.messages);
   const overrides = useStore(store, (s) => s.overrides);
   const insertedComponents = useStore(store, (s) => s.insertedComponents);
+  const injections = useStore(store, (s) => s.injections);
+  const themeVars = useStore(store, (s) => s.themeVars);
+  const layoutModes = useStore(store, (s) => s.layoutModes);
 
   const [input, setInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -102,7 +105,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     Object.keys(overrides).length > 0 ||
     Object.keys(insertedComponents).some(
       (k) => (insertedComponents[k]?.length ?? 0) > 0,
-    );
+    ) ||
+    Object.keys(injections).some((k) => (injections[k]?.length ?? 0) > 0) ||
+    Object.keys(themeVars).length > 0 ||
+    Object.keys(layoutModes).length > 0;
 
   const submitSave = useCallback(
     async (email: string) => {

@@ -1,10 +1,20 @@
-import type { AgentConnectionConfig, Override, InsertedComponent } from "../types";
+import type {
+  AgentConnectionConfig,
+  HtmlInjection,
+  InsertedComponent,
+  LayoutOverride,
+  Override,
+} from "../types";
 
 const FARADAY_API_BASE = "https://api.faraday.ai";
 
 export interface Snapshot {
   overrides: Record<string, Override>;
   insertedComponents: Record<string, InsertedComponent[]>;
+  containerOrder?: Record<string, string[]>;
+  injections?: Record<string, HtmlInjection[]>;
+  themeVars?: Record<string, string>;
+  layoutModes?: Record<string, LayoutOverride>;
 }
 
 function resolveBase(connection: AgentConnectionConfig): string {

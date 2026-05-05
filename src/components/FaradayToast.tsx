@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 
-const PALETTE = {
-  info:    { bg: "#1e293b", border: "#334155", color: "#e2e8f0", accent: "#60a5fa" },
-  warning: { bg: "#78350f", border: "#92400e", color: "#fef3c7", accent: "#fbbf24" },
-  error:   { bg: "#7f1d1d", border: "#991b1b", color: "#fee2e2", accent: "#f87171" },
-  success: { bg: "#14532d", border: "#166534", color: "#dcfce7", accent: "#4ade80" },
+const ACCENT = {
+  info:    "#3b82f6",
+  warning: "#f59e0b",
+  error:   "#ef4444",
+  success: "#22c55e",
 };
 
 export interface FaradayToastProps {
   message: string;
   title?: string;
-  variant?: keyof typeof PALETTE;
+  variant?: keyof typeof ACCENT;
   /** Auto-dismiss after N ms. Pass 0 for persistent. Default: 4000 */
   duration?: number;
 }
@@ -31,41 +31,31 @@ export function FaradayToast({
 
   if (!visible) return null;
 
-  const c = PALETTE[variant] ?? PALETTE.info;
+  const accent = ACCENT[variant] ?? ACCENT.info;
 
   return (
     <div
       style={{
-        background: c.bg,
-        border: `1px solid ${c.border}`,
-        borderRadius: 10,
-        padding: "12px 16px",
+        background: "var(--background, #ffffff)",
+        border: "1px solid currentColor",
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: 8,
+        padding: "12px 14px",
         minWidth: 280,
         maxWidth: 360,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        fontSize: 14,
-        lineHeight: 1.5,
-        color: c.color,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        font: "inherit",
+        color: "inherit",
         display: "flex",
         alignItems: "flex-start",
         gap: 10,
       }}
     >
-      <div
-        style={{
-          width: 4,
-          borderRadius: 2,
-          background: c.accent,
-          alignSelf: "stretch",
-          flexShrink: 0,
-        }}
-      />
       <div style={{ flex: 1 }}>
         {title && (
-          <div style={{ fontWeight: 600, marginBottom: 2, color: "#fff" }}>{title}</div>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>{title}</div>
         )}
-        <div>{message}</div>
+        <div style={{ opacity: 0.85 }}>{message}</div>
       </div>
       <button
         onClick={() => setVisible(false)}
@@ -73,13 +63,14 @@ export function FaradayToast({
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: c.color,
+          color: "inherit",
           opacity: 0.5,
           padding: 0,
-          fontSize: 16,
+          font: "inherit",
           lineHeight: 1,
           flexShrink: 0,
         }}
+        aria-label="Dismiss"
       >
         ✕
       </button>

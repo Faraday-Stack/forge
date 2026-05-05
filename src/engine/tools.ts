@@ -111,6 +111,48 @@ export const TOOL_SCHEMA = [
     },
   },
   {
+    name: "applyTheme",
+    description:
+      "Re-skin the entire host page by setting CSS custom properties on the document root. Use this when the user asks for a theme change ('make this dark', 'use a warmer palette', 'feel more like Notion'). The host's existing components inherit from these vars (e.g. --background, --foreground, --primary, --accent, --border, --muted), so changing them cascades through the whole UI without per-element styling. Inspect the active vars in the snapshot before changing them — only override the ones you need. Pass an empty string for a var name to clear an override.",
+    input_schema: {
+      type: "object",
+      properties: {
+        vars: {
+          type: "object",
+          description:
+            "Map of CSS variable names (with or without leading '--') to values. Example: { background: 'oklch(0.18 0 0)', foreground: 'oklch(0.98 0 0)', primary: '#f97316' }.",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["vars"],
+    },
+  },
+  {
+    name: "setLayout",
+    description:
+      "Switch a container's layout mode. Reflows its children client-side without changing the DOM order. Use this for radical structural requests ('show this as a kanban board', 'make this a grid', 'lay these out on a timeline'). Targets must be ids marked [container] in the page tree.",
+    input_schema: {
+      type: "object",
+      properties: {
+        targetId: { type: "string", description: "Id of the container to reflow." },
+        mode: {
+          type: "string",
+          enum: ["list", "grid", "kanban", "timeline"],
+          description:
+            "list = vertical stack (default), grid = responsive cards, kanban = N evenly-sized columns, timeline = vertical with a left rail.",
+        },
+        columns: {
+          type: "integer",
+          minimum: 1,
+          maximum: 6,
+          description:
+            "Optional column count for kanban (default 3). Ignored by list/grid/timeline.",
+        },
+      },
+      required: ["targetId", "mode"],
+    },
+  },
+  {
     name: "undo",
     description: "Undo the last N actions.",
     input_schema: {

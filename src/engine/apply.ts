@@ -60,18 +60,54 @@ export function dispatchToolUse(
       };
       break;
     case "injectHTML": {
-      const pos = (tool.input.position as string) ?? "after";
-      const allowed = ["before", "after", "inside-start", "inside-end"];
+      const rawPos = (tool.input.position as string) ?? "after";
+      // The model frequently emits DOM `insertAdjacentHTML` synonyms
+      // (`beforebegin`, `afterend`, etc.) instead of our enum. Alias them
+      // rather than silently fall back to "after" — that's what was sending
+      // "above" requests below the target.
+      const POSITION_ALIASES: Record<string, "before" | "after" | "inside-start" | "inside-end"> = {
+        before: "before",
+        after: "after",
+        "inside-start": "inside-start",
+        "inside-end": "inside-end",
+        beforebegin: "before",
+        afterend: "after",
+        afterbegin: "inside-start",
+        beforeend: "inside-end",
+        above: "before",
+        below: "after",
+        prepend: "inside-start",
+        append: "inside-end",
+      };
+      const position = POSITION_ALIASES[rawPos] ?? "after";
       action = {
         type: "injectHTML",
         targetId: tool.input.targetId as string,
         html: tool.input.html as string,
-        position: (allowed.includes(pos) ? pos : "after") as
-          | "before"
-          | "after"
-          | "inside-start"
-          | "inside-end",
+        position,
         injectionId: nanoid(),
+      };
+      break;
+    }
+    case "applyTheme":
+      action = {
+        type: "applyTheme",
+        vars: (tool.input.vars as Record<string, string>) ?? {},
+      };
+      break;
+    case "setLayout": {
+      const mode = tool.input.mode as string;
+      const allowed = ["list", "grid", "kanban", "timeline"] as const;
+      if (!allowed.includes(mode as (typeof allowed)[number])) {
+        return `setLayout: invalid mode '${mode}'`;
+      }
+      action = {
+        type: "setLayout",
+        targetId: tool.input.targetId as string,
+        mode: mode as (typeof allowed)[number],
+        ...(typeof tool.input.columns === "number" && {
+          columns: tool.input.columns as number,
+        }),
       };
       break;
     }

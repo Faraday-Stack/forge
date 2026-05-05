@@ -101,6 +101,14 @@ export interface HtmlInjection {
   position: InjectionPosition;
 }
 
+export type LayoutMode = "list" | "grid" | "kanban" | "timeline";
+
+export interface LayoutOverride {
+  mode: LayoutMode;
+  /** Optional column count for grid/kanban (default 3). Ignored by list/timeline. */
+  columns?: number;
+}
+
 export type Action =
   | { type: "applyStyle"; targetId: string; properties: CSSProperties; scope?: "element" | "descendants" }
   | { type: "setText"; targetId: string; text: string }
@@ -108,6 +116,8 @@ export type Action =
   | { type: "reorder"; containerId: string; order: string[] }
   | { type: "insertComponent"; containerId: string; componentName: string; props: Record<string, unknown>; position: number; instanceId: string }
   | { type: "injectHTML"; targetId: string; html: string; position: InjectionPosition; injectionId: string }
+  | { type: "applyTheme"; vars: Record<string, string> }
+  | { type: "setLayout"; targetId: string; mode: LayoutMode; columns?: number }
   | { type: "undo"; steps?: number };
 
 /** Inverse actions stored in the undo history. Each forward action computes its inverse before committing. */
@@ -117,7 +127,9 @@ export type InverseAction =
   | { type: "setVisibility"; targetId: string; visible: boolean }
   | { type: "reorder"; containerId: string; order: string[] }
   | { type: "removeInserted"; containerId: string; instanceId: string }
-  | { type: "removeInjection"; injectionId: string };
+  | { type: "removeInjection"; injectionId: string }
+  | { type: "applyTheme"; vars: Record<string, string | null> }
+  | { type: "setLayout"; targetId: string; previous: LayoutOverride | null };
 
 /** Full page state sent to the LLM as context. Built by `buildSnapshot()` before each request. */
 export interface PageSnapshot {
@@ -127,6 +139,10 @@ export interface PageSnapshot {
   containerOrder: Record<string, string[]>;
   /** Available components the agent may insert, with their prop schemas. */
   components: Array<{ name: string; props: Record<string, string> }>;
+  /** Active CSS-variable overrides applied to <html>. Empty when the agent hasn't re-themed. */
+  themeVars: Record<string, string>;
+  /** Per-container layout-mode override. Containers without an entry render in their host's native layout. */
+  layoutModes: Record<string, LayoutOverride>;
 }
 
 /**

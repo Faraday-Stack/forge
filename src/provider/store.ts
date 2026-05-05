@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import type { CSSProperties } from "react";
-import { sanitizeStyleValue } from "../engine/sanitize";
+import { sanitizeStyleValue, sanitizeCssVarName } from "../engine/sanitize";
 import type {
   Override,
   InsertedComponent,
@@ -12,6 +12,7 @@ import type {
   ComponentRegistryEntry,
   ChatMessage,
   HtmlInjection,
+  LayoutOverride,
 } from "../types";
 import { sanitizeHtmlMarkup } from "../engine/sanitize";
 
@@ -41,6 +42,15 @@ const DEFAULT_PERMISSIONS: PermissionsConfig = {
     "letterSpacing",
     "lineHeight",
     "textDecoration",
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "maxWidth",
+    "maxHeight",
+    "flexBasis",
+    "flexGrow",
+    "flexShrink",
   ],
   maxUndoDepth: 50,
   persist: "none",
@@ -60,6 +70,10 @@ export interface AgentState {
   containerOrder: Record<string, string[]>;
   /** targetId → list of injected HTML/SVG fragments rendered around the element. */
   injections: Record<string, HtmlInjection[]>;
+  /** Active CSS custom-property overrides keyed by the canonical `--name` form. */
+  themeVars: Record<string, string>;
+  /** Per-container layout-mode override. */
+  layoutModes: Record<string, LayoutOverride>;
 
   register: (entry: ModifiableEntry) => void;
   unregister: (id: string) => void;
@@ -75,12 +89,16 @@ export interface AgentState {
     insertedComponents: Record<string, InsertedComponent[]>;
     containerOrder: Record<string, string[]>;
     injections: Record<string, HtmlInjection[]>;
+    themeVars: Record<string, string>;
+    layoutModes: Record<string, LayoutOverride>;
   };
   hydrate: (snapshot: {
     overrides: Record<string, Override>;
     insertedComponents: Record<string, InsertedComponent[]>;
     containerOrder?: Record<string, string[]>;
     injections?: Record<string, HtmlInjection[]>;
+    themeVars?: Record<string, string>;
+    layoutModes?: Record<string, LayoutOverride>;
   }) => void;
 }
 
@@ -106,6 +124,8 @@ export function createAgentStore(
     pulsingIds: {},
     containerOrder: {},
     injections: {},
+    themeVars: {},
+    layoutModes: {},
 
     register(entry) {
       set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
@@ -146,13 +166,22 @@ export function createAgentStore(
           return `Unknown containerId: ${action.containerId}`;
         }
       }
+      // setLayout requires the target be a registered container.
+      if (action.type === "setLayout") {
+        const entry = registry[action.targetId];
+        if (!entry || entry.type !== "container") {
+          return `setLayout: targetId '${action.targetId}' is not a [container]`;
+        }
+      }
 
-      const { containerOrder, injections } = get();
+      const { containerOrder, injections, themeVars, layoutModes } = get();
       let inverse: InverseAction | null = null;
       const nextOverrides = { ...overrides };
       const nextInserted = { ...insertedComponents };
       let nextContainerOrder = containerOrder;
       let nextInjections = injections;
+      let nextThemeVars = themeVars;
+      let nextLayoutModes = layoutModes;
 
       if (action.type === "applyStyle") {
         // Filter to allowedStyleProps first, then sanitize each value for injection patterns.
@@ -260,6 +289,48 @@ export function createAgentStore(
           [action.targetId]: [...(nextInjections[action.targetId] ?? []), next],
         };
         inverse = { type: "removeInjection", injectionId: action.injectionId };
+      } else if (action.type === "applyTheme") {
+        // Sanitize each (name, value) pair. Empty value clears the var.
+        const cleanedNew: Record<string, string> = {};
+        const cleared: string[] = [];
+        for (const [rawName, rawValue] of Object.entries(action.vars)) {
+          const name = sanitizeCssVarName(rawName);
+          if (!name) continue;
+          if (rawValue === "" || rawValue == null) {
+            cleared.push(name);
+            continue;
+          }
+          const cleanValue = sanitizeStyleValue(String(rawValue));
+          if (cleanValue == null) continue;
+          cleanedNew[name] = cleanValue;
+        }
+        if (
+          Object.keys(cleanedNew).length === 0 &&
+          cleared.length === 0
+        ) {
+          return "applyTheme: no valid variables after sanitization";
+        }
+        // Inverse: previous values for every name we touched (null = was unset).
+        const inverseVars: Record<string, string | null> = {};
+        for (const name of [...Object.keys(cleanedNew), ...cleared]) {
+          inverseVars[name] = name in nextThemeVars ? nextThemeVars[name] : null;
+        }
+        const merged = { ...nextThemeVars, ...cleanedNew };
+        for (const name of cleared) delete merged[name];
+        nextThemeVars = merged;
+        inverse = { type: "applyTheme", vars: inverseVars };
+      } else if (action.type === "setLayout") {
+        const previous = nextLayoutModes[action.targetId] ?? null;
+        const next: LayoutOverride = {
+          mode: action.mode,
+          ...(action.columns !== undefined && { columns: action.columns }),
+        };
+        nextLayoutModes = { ...nextLayoutModes, [action.targetId]: next };
+        inverse = {
+          type: "setLayout",
+          targetId: action.targetId,
+          previous,
+        };
       }
 
       // Prepend the inverse so undo replays in LIFO order; trim to maxUndoDepth.
@@ -272,6 +343,8 @@ export function createAgentStore(
         insertedComponents: nextInserted,
         containerOrder: nextContainerOrder,
         injections: nextInjections,
+        themeVars: nextThemeVars,
+        layoutModes: nextLayoutModes,
         history: nextHistory,
       });
 
@@ -288,6 +361,8 @@ export function createAgentStore(
         affected.push(action.containerId, action.instanceId);
       } else if (action.type === "injectHTML") {
         affected.push(action.targetId);
+      } else if (action.type === "setLayout") {
+        affected.push(action.targetId);
       }
       if (affected.length) get().markPulsing(affected);
 
@@ -296,11 +371,13 @@ export function createAgentStore(
     },
 
     undo(steps = 1) {
-      const { history, overrides, insertedComponents, containerOrder, injections } = get();
+      const { history, overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes } = get();
       let nextOverrides = { ...overrides };
       let nextInserted = { ...insertedComponents };
       let nextContainerOrder = { ...containerOrder };
       let nextInjections = { ...injections };
+      let nextThemeVars = { ...themeVars };
+      let nextLayoutModes = { ...layoutModes };
       let remaining = history;
       const touched: string[] = [];
 
@@ -353,6 +430,14 @@ export function createAgentStore(
                 nextInjections[tId] = filtered;
               }
             }
+          } else if (inv.type === "applyTheme") {
+            for (const [name, value] of Object.entries(inv.vars)) {
+              if (value == null) delete nextThemeVars[name];
+              else nextThemeVars[name] = value;
+            }
+          } else if (inv.type === "setLayout") {
+            if (inv.previous) nextLayoutModes[inv.targetId] = inv.previous;
+            else delete nextLayoutModes[inv.targetId];
           }
         }
       }
@@ -362,6 +447,8 @@ export function createAgentStore(
         insertedComponents: nextInserted,
         containerOrder: nextContainerOrder,
         injections: nextInjections,
+        themeVars: nextThemeVars,
+        layoutModes: nextLayoutModes,
         history: remaining,
       });
       if (touched.length) get().markPulsing(touched);
@@ -395,6 +482,8 @@ export function createAgentStore(
         insertedComponents,
         components,
         containerOrder,
+        themeVars,
+        layoutModes,
       } = get();
       return {
         modifiables: Object.values(registry).map((entry) => {
@@ -410,6 +499,8 @@ export function createAgentStore(
           name,
           props: entry.propsSchema ?? {},
         })),
+        themeVars,
+        layoutModes,
       };
     },
 
@@ -441,8 +532,8 @@ export function createAgentStore(
     },
 
     getPersistableState() {
-      const { overrides, insertedComponents, containerOrder, injections } = get();
-      return { overrides, insertedComponents, containerOrder, injections };
+      const { overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes } = get();
+      return { overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes };
     },
 
     hydrate(snapshot) {
@@ -470,7 +561,23 @@ export function createAgentStore(
       )) {
         if (targetId in registry) injections[targetId] = list;
       }
-      set({ overrides, insertedComponents, containerOrder, injections, history: [] });
+      const layoutModes: Record<string, LayoutOverride> = {};
+      for (const [containerId, override] of Object.entries(
+        snapshot.layoutModes ?? {},
+      )) {
+        if (containerId in registry) layoutModes[containerId] = override;
+      }
+      // themeVars are document-level, not registry-scoped — keep as-is.
+      const themeVars = snapshot.themeVars ?? {};
+      set({
+        overrides,
+        insertedComponents,
+        containerOrder,
+        injections,
+        themeVars,
+        layoutModes,
+        history: [],
+      });
     },
   }));
 }

@@ -19,8 +19,8 @@ export function FaradayText({
     <Tag
       style={{
         margin: 0,
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        ...(color && { color }),
+        font: "inherit",
+        color: color ?? "inherit",
         ...(fontSize && { fontSize }),
         ...(fontWeight && { fontWeight }),
         ...(textAlign && { textAlign }),

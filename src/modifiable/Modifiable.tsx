@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   type ComponentPropsWithRef,
+  type CSSProperties,
   type ElementType,
   type ReactNode,
 } from "react";
@@ -12,7 +13,44 @@ import { useModifiable } from "./useModifiable";
 import { useAgentStore } from "../provider/context";
 import { useDragHandle } from "./useDragHandle";
 import { useFlipChildren } from "./useFlip";
-import type { ModifiableEntry } from "../types";
+import type { LayoutOverride, ModifiableEntry } from "../types";
+
+function buildLayoutStyle(override: LayoutOverride): CSSProperties {
+  switch (override.mode) {
+    case "grid":
+      return {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
+        gap: 16,
+        alignItems: "start",
+      };
+    case "kanban": {
+      const cols = Math.min(6, Math.max(1, override.columns ?? 3));
+      return {
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        gap: 16,
+        alignItems: "start",
+      };
+    }
+    case "timeline":
+      return {
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        borderLeft: "2px solid currentColor",
+        paddingLeft: 20,
+        opacity: 0.98,
+      };
+    case "list":
+    default:
+      return {
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      };
+  }
+}
 
 type ModifiableProps<T extends ElementType = "div"> = {
   id: string;
@@ -58,6 +96,7 @@ export function Modifiable<T extends ElementType = "div">({
   const pulseToken = useStore(store, (s) => s.pulsingIds[id]);
   const containerOrder = useStore(store, (s) => s.containerOrder[id]);
   const injections = useStore(store, (s) => s.injections[id] ?? []);
+  const layoutOverride = useStore(store, (s) => s.layoutModes[id]);
 
   const ref = useRef<HTMLElement | null>(null);
 
@@ -168,10 +207,20 @@ export function Modifiable<T extends ElementType = "div">({
     />
   );
 
+  // Layout overrides apply only to containers and merge after host/agent styles
+  // so they win — the agent explicitly chose this layout.
+  const layoutStyle =
+    isContainer && layoutOverride ? buildLayoutStyle(layoutOverride) : null;
+
   return (
     <>
       {injBefore.map(renderInjection)}
-      <Tag ref={ref} id={id} style={{ ...externalStyle, ...style }} {...rest}>
+      <Tag
+        ref={ref}
+        id={id}
+        style={{ ...externalStyle, ...style, ...layoutStyle }}
+        {...rest}
+      >
         {injInsideStart.map(renderInjection)}
         {renderedChildren}
         {injInsideEnd.map(renderInjection)}

@@ -562,3 +562,143 @@
 .editResetBtn:hover {
   background: #e5e7eb;
 }
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.presetBtn {
+  flex: 1 1 auto;
+  min-width: 50px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  background: #fff;
+  color: #374151;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.presetBtn:hover {
+  border-color: #f97316;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.swatchedInput {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatch {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.12s, opacity 0.12s;
+}
+
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+.swatch::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.swatch:hover {
+  border-color: #f97316;
+}
+
+/* Container "+" add-button — positioned at the end of a container's children */
+.addComponentBtn {
+  position: fixed;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px dashed #f97316;
+  background: #fff;
+  color: #f97316;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  font-family: inherit;
+  z-index: 2147483645;
+  transition: background 0.12s, transform 0.08s;
+}
+
+.addComponentBtn:hover {
+  background: #f97316;
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.componentPicker {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  z-index: 2147483646;
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.componentPickerItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  color: #111827;
+  transition: background 0.1s;
+}
+
+.componentPickerItem:hover {
+  background: #f3f4f6;
+}
+
+/* Resize corner handle — bottom-right of the focused Modifiable */
+.resizeHandle {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: #f97316;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: nwse-resize;
+  z-index: 2147483645;
+  touch-action: none;
+}
+
+.resizeHandle:hover {
+  transform: scale(1.15);
+}

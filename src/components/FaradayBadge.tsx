@@ -1,18 +1,19 @@
-const VARIANTS = {
-  primary:   { bg: "#111827", color: "#fff" },
-  secondary: { bg: "#f3f4f6", color: "#374151" },
-  success:   { bg: "#dcfce7", color: "#166534" },
-  warning:   { bg: "#fef9c3", color: "#854d0e" },
-  error:     { bg: "#fee2e2", color: "#991b1b" },
+const ACCENT: Record<string, string> = {
+  primary:   "currentColor",
+  secondary: "currentColor",
+  success:   "#22c55e",
+  warning:   "#f59e0b",
+  error:     "#ef4444",
 };
 
 export interface FaradayBadgeProps {
   label: string;
-  variant?: keyof typeof VARIANTS;
+  variant?: keyof typeof ACCENT;
 }
 
 export function FaradayBadge({ label, variant = "secondary" }: FaradayBadgeProps) {
-  const v = VARIANTS[variant] ?? VARIANTS.secondary;
+  const accent = ACCENT[variant] ?? ACCENT.secondary;
+  const isMuted = variant === "secondary";
 
   return (
     <span
@@ -21,12 +22,14 @@ export function FaradayBadge({ label, variant = "secondary" }: FaradayBadgeProps
         alignItems: "center",
         padding: "2px 8px",
         borderRadius: 999,
-        fontSize: 12,
+        fontSize: "0.85em",
         fontWeight: 500,
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        font: "inherit",
         lineHeight: 1.5,
-        background: v.bg,
-        color: v.color,
+        border: `1px solid ${accent}`,
+        background: "transparent",
+        color: accent === "currentColor" ? "inherit" : accent,
+        opacity: isMuted ? 0.7 : 1,
       }}
     >
       {label}

@@ -1,7 +1,7 @@
 const VARIANTS = {
-  default:  { bg: "#ffffff", border: "#e5e7eb", shadow: "0 1px 6px rgba(0,0,0,0.08)" },
-  outlined: { bg: "#ffffff", border: "#111827", shadow: "none" },
-  filled:   { bg: "#f3f4f6", border: "#e5e7eb", shadow: "none" },
+  default:  { borderWidth: 1, opacity: 1, fill: false },
+  outlined: { borderWidth: 1.5, opacity: 1, fill: false },
+  filled:   { borderWidth: 1, opacity: 1, fill: true },
 };
 
 export interface FaradayCardProps {
@@ -24,26 +24,24 @@ export function FaradayCard({
   return (
     <div
       style={{
-        background: v.bg,
-        border: `1px solid ${v.border}`,
-        borderRadius: 12,
+        background: v.fill ? "rgb(from currentColor r g b / 0.04)" : "transparent",
+        border: `${v.borderWidth}px solid currentColor`,
+        borderRadius: 8,
         padding: "16px 20px",
-        boxShadow: v.shadow,
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        fontSize: 14,
-        lineHeight: 1.5,
-        color: "#111827",
+        font: "inherit",
+        color: "inherit",
         display: "flex",
         flexDirection: "column",
         gap: 8,
         margin: "8px 0",
+        opacity: 0.95,
       }}
     >
       {title && (
-        <div style={{ fontWeight: 600, fontSize: 15 }}>{title}</div>
+        <div style={{ fontWeight: 600, fontSize: "1.05em" }}>{title}</div>
       )}
       {body && (
-        <div style={{ color: "#4b5563" }}>{body}</div>
+        <div style={{ opacity: 0.75 }}>{body}</div>
       )}
       {cta && (
         <a
@@ -52,12 +50,12 @@ export function FaradayCard({
             display: "inline-block",
             marginTop: 4,
             padding: "6px 14px",
-            background: "#111827",
-            color: "#fff",
+            border: "1px solid currentColor",
             borderRadius: 6,
-            fontSize: 13,
+            fontSize: "0.92em",
             fontWeight: 500,
             textDecoration: "none",
+            color: "inherit",
             alignSelf: "flex-start",
           }}
         >

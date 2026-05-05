@@ -3,6 +3,7 @@ export { UIAgentLauncher } from "./widget/UIAgentLauncher";
 export { InlineEditOverlay } from "./widget/InlineEditOverlay";
 export { Modifiable } from "./modifiable/Modifiable";
 export { useModifiable } from "./modifiable/useModifiable";
+export { FaradayInjectionSlot } from "./modifiable/FaradayInjectionSlot";
 export {
   DEFAULT_COMPONENTS,
   FaradayBanner,

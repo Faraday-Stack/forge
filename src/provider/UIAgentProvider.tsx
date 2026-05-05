@@ -120,6 +120,7 @@ export function UIAgentProvider({
     >
       <AgentStoreContext.Provider value={patchedStore}>
         <AgentFormContext.Provider value={stableFormSubmit}>
+          <ThemeApplier store={patchedStore} />
           {children}
           <ToastLayer store={patchedStore} />
           <InlineEditOverlay />
@@ -127,6 +128,43 @@ export function UIAgentProvider({
       </AgentStoreContext.Provider>
     </AgentConnectionContext.Provider>
   );
+}
+
+/**
+ * Mirrors `themeVars` from the store onto `document.documentElement` and tracks
+ * which vars we set so we can clean them up on unmount or when the agent clears
+ * an override. Renders nothing.
+ */
+function ThemeApplier({ store }: { store: AgentStore }) {
+  const themeVars = useStore(store, (s) => s.themeVars);
+  const previouslyAppliedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const nowApplied = new Set(Object.keys(themeVars));
+
+    for (const name of previouslyAppliedRef.current) {
+      if (!nowApplied.has(name)) root.style.removeProperty(name);
+    }
+    for (const [name, value] of Object.entries(themeVars)) {
+      root.style.setProperty(name, value);
+    }
+    previouslyAppliedRef.current = nowApplied;
+  }, [themeVars]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof document === "undefined") return;
+      const root = document.documentElement;
+      for (const name of previouslyAppliedRef.current) {
+        root.style.removeProperty(name);
+      }
+      previouslyAppliedRef.current = new Set();
+    };
+  }, []);
+
+  return null;
 }
 
 function ToastLayer({ store }: { store: AgentStore }) {
