@@ -173,7 +173,6 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   return (
     <div className={styles.panel} role="dialog" aria-label="Faraday UI Agent">
       <div className={styles.panelHeader}>
-        <span className={styles.panelTitle}>UI Agent</span>
         <div className={styles.headerActions}>
           <button
             type="button"
