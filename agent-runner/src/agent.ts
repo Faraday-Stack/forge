@@ -1,22 +1,23 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import path from "node:path";
 
 export const SYSTEM_PROMPT = `You are a senior FDE turning a real end-user feature request into a real pull request.
 You are operating inside a fresh shallow clone of the customer's repository.
 
 Your job:
-1. Read the request, the recorded chat transcript, the page context (modifiable elements
-   with source file/line where known), and the runtime overrides the in-page agent applied.
-2. Navigate the repo (use Read, Grep, and Bash) to find the existing files that own the
-   relevant UI and any backend routes/handlers/data models the change requires.
-3. Edit the existing files in place using Edit. Touch backend code when the request needs
-   data or behavior the frontend alone cannot deliver. Prefer minimal, surgical changes.
+1. Read the request, the recorded chat transcript, the page context (modifiable elements with source file/line where
+   known), and the runtime overrides the in-page agent applied.
+2. Navigate the repo (use Read, Grep, and Bash) to find the existing files that own the relevant UI and any backend
+   routes/handlers/data models the change requires.
+3. Edit the existing files in place using Edit. Touch backend code when the request needs data or behavior the frontend
+   alone cannot deliver. Prefer minimal, surgical changes.
 4. Match the project's existing patterns (framework, file layout, naming, tests).
-5. Do NOT create a brand-new isolated component file unless that genuinely is the right
-   shape — the goal is the change a human FDE would make.
+5. Do NOT create a brand-new isolated component file unless that genuinely is the right shape — the goal is the change
+   a human FDE would make.
 
-When you finish, write a one-paragraph summary of what you changed and why to
-.faraday/summary.txt (overwrite it). Keep the summary under 8 lines.`;
+When you finish, write a one-paragraph summary of what you changed and why to .faraday/summary.txt (overwrite it). Keep
+the summary under 8 lines.`;
 
 export interface AgentEvent {
   type: "text_delta" | "tool_use";
@@ -49,17 +50,10 @@ export async function* runAgent(
     ),
   );
 
-  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as {
-    query: (params: {
-      prompt: string;
-      options?: Record<string, unknown>;
-    }) => AsyncIterable<unknown>;
-  };
-
   let lastText = "";
   const allText: string[] = [];
 
-  const stream = sdk.query({
+  const stream = query({
     prompt: input.userPrompt,
     options: {
       cwd: input.dir,
@@ -69,24 +63,14 @@ export async function* runAgent(
     },
   });
 
-  for await (const ev of stream) {
-    const evType = (ev as { type?: string }).type;
-    const message = (ev as { message?: { content?: unknown } }).message;
-    if (evType === "assistant" && Array.isArray(message?.content)) {
-      for (const block of message.content as Array<{
-        type?: string;
-        text?: string;
-        name?: string;
-        input?: unknown;
-      }>) {
-        if (block?.type === "text" && typeof block.text === "string") {
+  for await (const event of stream) {
+    if (event.type === "assistant")
+      for (const block of event.message.content) {
+        if (block.type === "text") {
           lastText = block.text;
           allText.push(block.text);
           yield { type: "text_delta", text: block.text };
-        } else if (
-          block?.type === "tool_use" &&
-          typeof block.name === "string"
-        ) {
+        } else {
           yield {
             type: "tool_use",
             toolName: block.name,
@@ -94,7 +78,6 @@ export async function* runAgent(
           };
         }
       }
-    }
   }
 
   const summaryPath = path.join(meta, "summary.txt");

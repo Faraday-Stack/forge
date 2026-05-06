@@ -45,7 +45,10 @@ ${JSON.stringify(input.toolCalls ?? [], null, 2)}
 Make the change real in this repo. Edit existing files, add backend support if needed.`;
 }
 
-export async function* runJob(input: JobInput, deps: RunJobDeps): AsyncGenerator<JobEvent, void, void> {
+export async function* runJob(
+  input: JobInput,
+  deps: RunJobDeps,
+): AsyncGenerator<JobEvent, void, void> {
   const startedAt = Date.now();
   yield { type: "prepare:start", snapshotKey: input.snapshotKey };
 
@@ -69,7 +72,10 @@ export async function* runJob(input: JobInput, deps: RunJobDeps): AsyncGenerator
   if (input.snapshotKey) {
     yield prepareResult.snapshotHit
       ? { type: "prepare:snapshot_hit" }
-      : { type: "prepare:snapshot_miss", reason: "blob fetch failed or absent" };
+      : {
+          type: "prepare:snapshot_miss",
+          reason: "blob fetch failed or absent",
+        };
   }
   yield {
     type: "prepare:done",
@@ -94,11 +100,20 @@ export async function* runJob(input: JobInput, deps: RunJobDeps): AsyncGenerator
         break;
       }
       const ev = next.value;
-      if (ev.type === "text_delta" && ev.text) yield { type: "agent:text_delta", text: ev.text };
-      else if (ev.type === "tool_use" && ev.toolName) yield { type: "agent:tool_use", name: ev.toolName, input: ev.toolInput };
+      if (ev.type === "text_delta" && ev.text)
+        yield { type: "agent:text_delta", text: ev.text };
+      else if (ev.type === "tool_use" && ev.toolName)
+        yield {
+          type: "agent:tool_use",
+          name: ev.toolName,
+          input: ev.toolInput,
+        };
     }
-  } catch (e) {
-    yield { type: "failed", error: `agent failed: ${(e as Error).message}` };
+  } catch (error) {
+    yield {
+      type: "failed",
+      error: `agent failed: ${(error as Error).message}`,
+    };
     yield { type: "done" };
     return;
   }
@@ -138,7 +153,9 @@ export async function* runJob(input: JobInput, deps: RunJobDeps): AsyncGenerator
 
   // Snapshot upload — only if we missed cache or the lockfile drifted, and only
   // after stripping the live token from the remote URL so we never persist it.
-  const shouldUpload = !!input.snapshotKey && (!prepareResult.snapshotHit || prepareResult.lockfileChanged);
+  const shouldUpload =
+    !!input.snapshotKey &&
+    (!prepareResult.snapshotHit || prepareResult.lockfileChanged);
   if (shouldUpload && input.snapshotKey) {
     try {
       await stripTokenFromRemote(deps.workdir, input.owner, input.repo);

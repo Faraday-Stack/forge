@@ -28,10 +28,16 @@ export async function pushBranchAndOpenPR(input: PushAndOpenInput): Promise<Push
   const branch = `faraday/${shortId(input.requestId)}-${input.jobId.slice(0, 8)}`;
 
   await exec("git", ["-C", dir, "checkout", "-B", branch]);
-  await exec("git", ["-C", dir, "add", "-A"]);
+  // Stage everything *except* the agent's own bookkeeping directory.
+  // `.faraday/` holds prompt.json and summary.txt that the runner writes for
+  // its own use — they should never land in the customer's PR. Pathspec
+  // `:(exclude)` is the magic git syntax for this.
+  await exec("git", ["-C", dir, "add", "-A", "--", ".", ":(exclude).faraday"]);
 
-  const { stdout } = await exec("git", ["-C", dir, "status", "--porcelain"]);
-  if (!stdout.trim()) return null;
+  // Check the *staged* set, not `git status --porcelain` — the latter would
+  // also report `.faraday/` as untracked and falsely indicate "changes exist".
+  const { stdout: staged } = await exec("git", ["-C", dir, "diff", "--cached", "--name-only"]);
+  if (!staged.trim()) return null;
 
   const promptSlice = (input.prompt || "apply user request").slice(0, 60);
   await exec("git", ["-C", dir, "commit", "-m", `Faraday: ${promptSlice}`]);

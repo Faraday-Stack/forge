@@ -92,7 +92,11 @@ export interface PageContext {
  * - `insertComponent` — inserts a registered component into a container
  * - `undo` — replays the last N inverse actions from the history stack
  */
-export type InjectionPosition = "before" | "after" | "inside-start" | "inside-end";
+export type InjectionPosition =
+  | "before"
+  | "after"
+  | "inside-start"
+  | "inside-end";
 
 export interface HtmlInjection {
   injectionId: string;
@@ -110,12 +114,30 @@ export interface LayoutOverride {
 }
 
 export type Action =
-  | { type: "applyStyle"; targetId: string; properties: CSSProperties; scope?: "element" | "descendants" }
+  | {
+      type: "applyStyle";
+      targetId: string;
+      properties: CSSProperties;
+      scope?: "element" | "descendants";
+    }
   | { type: "setText"; targetId: string; text: string }
   | { type: "setVisibility"; targetId: string; visible: boolean }
   | { type: "reorder"; containerId: string; order: string[] }
-  | { type: "insertComponent"; containerId: string; componentName: string; props: Record<string, unknown>; position: number; instanceId: string }
-  | { type: "injectHTML"; targetId: string; html: string; position: InjectionPosition; injectionId: string }
+  | {
+      type: "insertComponent";
+      containerId: string;
+      componentName: string;
+      props: Record<string, unknown>;
+      position: number;
+      instanceId: string;
+    }
+  | {
+      type: "injectHTML";
+      targetId: string;
+      html: string;
+      position: InjectionPosition;
+      injectionId: string;
+    }
   | { type: "applyTheme"; vars: Record<string, string> }
   | { type: "setLayout"; targetId: string; mode: LayoutMode; columns?: number }
   | { type: "undo"; steps?: number };
@@ -133,7 +155,9 @@ export type InverseAction =
 
 /** Full page state sent to the LLM as context. Built by `buildSnapshot()` before each request. */
 export interface PageSnapshot {
-  modifiables: Array<ModifiableEntry & { currentText?: string; currentStyle?: CSSProperties }>;
+  modifiables: Array<
+    ModifiableEntry & { currentText?: string; currentStyle?: CSSProperties }
+  >;
   insertedComponents: Record<string, InsertedComponent[]>;
   /** Per-container child order. Ids may be native Modifiable ids or inserted instanceIds. */
   containerOrder: Record<string, string[]>;

@@ -11,71 +11,52 @@
  * is the durable record so reconnects and refreshes can replay.
  */
 import { runJob } from "./runJob.js";
-import type { JobEvent, JobInput } from "./types.js";
-
-interface SandboxEnv {
-  JOB_INPUT: string;
-  GITHUB_TOKEN: string;
-  ANTHROPIC_API_KEY?: string;
-  ANTHROPIC_MODEL?: string;
-  BLOB_READ_WRITE_TOKEN?: string;
-  FARADAY_FIREBASE_SA_BASE64?: string;
-  FIREBASE_PROJECT_ID?: string;
-  FARADAY_SNAPSHOT_MAX_BYTES?: string;
-  FARADAY_WORKDIR?: string;
-}
+import type { JobEvent, JobInput, RunnerEnvironment } from "./types.js";
 
 function emit(line: object): void {
   process.stdout.write(JSON.stringify(line) + "\n");
 }
 
 async function main(): Promise<void> {
-  const env = process.env as unknown as SandboxEnv;
-  if (!env.JOB_INPUT) throw new Error("JOB_INPUT env var missing");
-  if (!env.GITHUB_TOKEN) throw new Error("GITHUB_TOKEN env var missing");
-
+  const env = process.env as unknown as RunnerEnvironment;
   const input = JSON.parse(env.JOB_INPUT) as JobInput;
-  const workdir = env.FARADAY_WORKDIR ?? "/work";
-  const snapshotMaxBytes = Number(env.FARADAY_SNAPSHOT_MAX_BYTES ?? 1_073_741_824);
+  const snapshotMaxBytes = Number(env.FARADAY_SNAPSHOT_MAX_BYTES);
 
-  let firestoreWriter: FirestoreWriter | null = null;
-  if (env.FARADAY_FIREBASE_SA_BASE64 && env.FIREBASE_PROJECT_ID) {
-    firestoreWriter = await createFirestoreWriter({
-      saBase64: env.FARADAY_FIREBASE_SA_BASE64,
-      projectId: env.FIREBASE_PROJECT_ID,
-      uid: input.uid,
-      requestId: input.requestId,
-      jobId: input.jobId,
-      repoFullName: input.repoFullName,
-    });
-  }
+  const firestoreWriter = await createFirestoreWriter({
+    saBase64: env.FARADAY_FIREBASE_SA_BASE64,
+    projectId: env.FIREBASE_PROJECT_ID,
+    uid: input.uid,
+    requestId: input.requestId,
+    jobId: input.jobId,
+    repoFullName: input.repoFullName,
+  });
 
   let exitCode = 0;
   try {
-    for await (const ev of runJob(input, {
-      workdir,
+    for await (const event of runJob(input, {
+      workdir: env.FARADAY_WORKDIR,
       githubToken: env.GITHUB_TOKEN,
       blobToken: env.BLOB_READ_WRITE_TOKEN,
       snapshotMaxBytes,
     })) {
-      emit({ event: ev, ts: Date.now() });
-      if (firestoreWriter) {
-        try {
-          await firestoreWriter.write(ev);
-        } catch (e) {
-          // Don't let a Firestore write error tank the job — SSE still works.
-          process.stderr.write(`firestore mirror failed: ${(e as Error).message}\n`);
-        }
+      emit({ event: event, ts: Date.now() });
+      try {
+        await firestoreWriter.write(event);
+      } catch (e) {
+        // Don't let a Firestore write error tank the job — SSE still works.
+        process.stderr.write(
+          `firestore mirror failed: ${(e as Error).message}\n`,
+        );
       }
-      if (ev.type === "failed") exitCode = 1;
+      if (event.type === "failed") exitCode = 1;
     }
   } catch (e) {
     const msg = (e as Error).message;
     emit({ event: { type: "failed", error: msg }, ts: Date.now() });
-    if (firestoreWriter) await firestoreWriter.write({ type: "failed", error: msg }).catch(() => {});
+    await firestoreWriter.write({ type: "failed", error: msg }).catch(() => {});
     exitCode = 1;
   } finally {
-    if (firestoreWriter) await firestoreWriter.flush().catch(() => {});
+    await firestoreWriter.flush().catch(() => {});
   }
 
   process.exit(exitCode);
@@ -110,16 +91,26 @@ interface FirestoreWriter {
   flush(): Promise<void>;
 }
 
-async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter> {
+async function createFirestoreWriter(
+  opts: WriterOpts,
+): Promise<FirestoreWriter> {
   const { initializeApp, cert, getApps } = await import("firebase-admin/app");
-  const { getFirestore, FieldValue, Timestamp } = await import("firebase-admin/firestore");
+  const { getFirestore, FieldValue, Timestamp } =
+    await import("firebase-admin/firestore");
 
   if (getApps().length === 0) {
     const json = Buffer.from(opts.saBase64, "base64").toString("utf-8");
-    initializeApp({ credential: cert(JSON.parse(json)), projectId: opts.projectId });
+    initializeApp({
+      credential: cert(JSON.parse(json)),
+      projectId: opts.projectId,
+    });
   }
   const db = getFirestore();
-  const reqRef = db.collection("integrations").doc(opts.uid).collection("requests").doc(opts.requestId);
+  const reqRef = db
+    .collection("integrations")
+    .doc(opts.uid)
+    .collection("requests")
+    .doc(opts.requestId);
   const eventsCol = reqRef.collection("events");
 
   let seq = 0;
@@ -198,6 +189,9 @@ async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter>
 }
 
 main().catch((e) => {
-  emit({ event: { type: "failed", error: (e as Error).message }, ts: Date.now() });
+  emit({
+    event: { type: "failed", error: (e as Error).message },
+    ts: Date.now(),
+  });
   process.exit(1);
 });
