@@ -120,3 +120,15 @@ For a focused short sprint, I'd take these in order:
 | 6 | Delete self-hosted code paths | S | Low — pure cleanup |
 
 The rest are good follow-ons but less urgent.
+
+---
+
+## Webapp / landing
+
+### Landing redesign — deferred items (2026-05-05)
+
+The marketing landing was rebuilt as a single full-bleed dark page where the hero is an interactive demo (terminal-style agent panel that rewrites `data-mod` targets in front of the visitor). Three things were intentionally deferred:
+
+1. **Mobile / tablet pass.** Layout is tuned for ≥1280px desktop. Hero collapses to a single column under 1024px (font-size only); ticket pile, signal stream, and PR table need a real mobile pass — the PR table's 6-column grid in particular will overflow.
+2. **Real backend hookup for the demo agent.** `agent-runtime.ts` is a pure client-side simulator — scripted prompts plus a regex-based `interpret()` for freeform asks. Wiring it to `/v1/stream` would require either a public unauthenticated demo endpoint or a per-visitor sandbox, plus parsing real NDJSON tool calls instead of canned ones.
+3. **A11y on the dark theme.** Inputs and buttons in the agent panel and CTA links need a focus-visible audit; the cyan undo flash + toast are decorative-only and should expose a screen-reader announcement.
