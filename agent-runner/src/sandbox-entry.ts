@@ -90,6 +90,21 @@ interface WriterOpts {
   repoFullName: string;
 }
 
+function phaseForEvent(ev: JobEvent): string | null {
+  switch (ev.type) {
+    case "prepare:start":
+      return "preparing";
+    case "agent:start":
+      return "agent_running";
+    case "pr:opening":
+      return "opening_pr";
+    case "snapshot:upload_start":
+      return "uploading_snapshot";
+    default:
+      return null;
+  }
+}
+
 interface FirestoreWriter {
   write(ev: JobEvent): Promise<void>;
   flush(): Promise<void>;
@@ -118,6 +133,15 @@ async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter>
         ...ev,
       });
 
+      const phase = phaseForEvent(ev);
+      if (phase) {
+        // Non-terminal phase progress; terminal events are handled below.
+        await reqRef.set(
+          { pr: { phase, lastEventAt: FieldValue.serverTimestamp() } },
+          { merge: true },
+        );
+      }
+
       // Mirror terminal state onto the parent doc's pr field so the dashboard
       // doesn't need to scan the events subcollection to know status.
       if (ev.type === "pr:opened") {
@@ -125,12 +149,14 @@ async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter>
           {
             pr: {
               status: "pr_opened",
+              phase: "done",
               url: ev.url,
               number: ev.number,
               branch: ev.branch,
               summary: ev.summary,
               repoFullName: opts.repoFullName,
               openedAt: FieldValue.serverTimestamp(),
+              lastEventAt: FieldValue.serverTimestamp(),
               error: null,
             },
           },
@@ -141,9 +167,11 @@ async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter>
           {
             pr: {
               status: "failed",
+              phase: "done",
               error: "Agent produced no edits.",
               summary: ev.summary,
               repoFullName: opts.repoFullName,
+              lastEventAt: FieldValue.serverTimestamp(),
             },
           },
           { merge: true },
@@ -153,8 +181,10 @@ async function createFirestoreWriter(opts: WriterOpts): Promise<FirestoreWriter>
           {
             pr: {
               status: "failed",
+              phase: "failed",
               error: ev.error,
               repoFullName: opts.repoFullName,
+              lastEventAt: FieldValue.serverTimestamp(),
             },
           },
           { merge: true },
