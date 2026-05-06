@@ -181,8 +181,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
             } ${saveStatus === "error" ? styles.saveBtnError : ""}`}
             onClick={onSave}
             disabled={
-              saveStatus === "saving" ||
-              (saveStatus === "idle" && !hasChanges)
+              saveStatus === "saving" || (saveStatus === "idle" && !hasChanges)
             }
             title={saveError ?? undefined}
           >
@@ -194,28 +193,33 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                   ? "Error"
                   : "Save"}
           </button>
-        <button
-          type="button"
-          className={styles.closeBtn}
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Close"
           >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div ref={messagesRef} className={styles.messages} role="log" aria-live="polite">
+      <div
+        ref={messagesRef}
+        className={styles.messages}
+        role="log"
+        aria-live="polite"
+      >
         {messages.length === 0 && (
           <div className={styles.emptyState}>
             Ask me to change anything on this page
@@ -319,7 +323,9 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                 fontFamily: "inherit",
               }}
             />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+            >
               <button
                 type="button"
                 onClick={() => setEmailModalOpen(false)}

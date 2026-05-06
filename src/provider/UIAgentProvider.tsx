@@ -16,7 +16,7 @@ import { InlineEditOverlay } from "../widget/InlineEditOverlay";
 
 /**
  * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses
- * `Modifiable`, `useModifiable`, or `UIAgentLauncher`.
+ * `Modifiable` or `useModifiable`.
  *
  * Operates in two modes — supply exactly one:
  * - **Self-hosted**: `endpoint` pointing at your backend's streaming route

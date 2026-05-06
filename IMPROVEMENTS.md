@@ -93,6 +93,12 @@ Pairs with #1 — once auto-slots exist, every Modifiable becomes a drop zone, w
 
 ---
 
+## 11. Removed `UIAgentLauncher` export
+
+**Status: done.** The `UIAgentLauncher` component was already a no-op stub — the chat UI is auto-mounted by `UIAgentProvider` via `InlineEditOverlay`. Deleted `src/widget/UIAgentLauncher.tsx`, dropped the export from `src/index.ts`, and cleared all references from the README, demos, and CLAUDE.md. **Breaking change** for any external consumer importing the symbol; merits a minor version bump.
+
+---
+
 ## 10. The chat panel doesn't show inserted instances by id
 
 **Problem.** When the user says "remove the welcome card," the agent has to guess which `instance_AbCd` that refers to. The spatial tree shows `[inserted FaradayCard]` but doesn't include the rendered props (e.g. `title="Welcome"`).

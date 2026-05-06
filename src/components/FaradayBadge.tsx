@@ -1,9 +1,9 @@
 const ACCENT: Record<string, string> = {
-  primary:   "currentColor",
+  primary: "currentColor",
   secondary: "currentColor",
-  success:   "#22c55e",
-  warning:   "#f59e0b",
-  error:     "#ef4444",
+  success: "#22c55e",
+  warning: "#f59e0b",
+  error: "#ef4444",
 };
 
 export interface FaradayBadgeProps {
@@ -11,7 +11,10 @@ export interface FaradayBadgeProps {
   variant?: keyof typeof ACCENT;
 }
 
-export function FaradayBadge({ label, variant = "secondary" }: FaradayBadgeProps) {
+export function FaradayBadge({
+  label,
+  variant = "secondary",
+}: FaradayBadgeProps) {
   const accent = ACCENT[variant] ?? ACCENT.secondary;
   const isMuted = variant === "secondary";
 

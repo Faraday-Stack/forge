@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 import {
@@ -23,7 +29,9 @@ export function InlineEditOverlay() {
   const registry = useStore(store, (s) => s.registry);
   const pulsingIds = useStore(store, (s) => s.pulsingIds);
   const [collapsed, setCollapsed] = useState(true);
-  const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(null);
+  const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const [allRects, setAllRects] = useState<Record<string, DOMRect>>({});
   const [panelRect, setPanelRect] = useState<DOMRect | null>(null);
   const [userMoved, setUserMoved] = useState(false);
@@ -80,18 +88,18 @@ export function InlineEditOverlay() {
 
       setAllRects(next);
 
-      const panelEl = refs.floating.current;
-      setPanelRect(panelEl ? panelEl.getBoundingClientRect() : null);
+      const panelElement = refs.floating.current;
+      setPanelRect(panelElement ? panelElement.getBoundingClientRect() : null);
 
       if (userMovedRef.current) {
-        const cur = dotPosRef.current;
-        if (cur) {
+        const current = dotPosRef.current;
+        if (current) {
           const dotSize = 32;
           const maxLeft = window.innerWidth - dotSize - 8;
           const maxTop = window.innerHeight - dotSize - 8;
-          const clampedLeft = Math.max(8, Math.min(maxLeft, cur.left));
-          const clampedTop = Math.max(8, Math.min(maxTop, cur.top));
-          if (clampedLeft !== cur.left || clampedTop !== cur.top) {
+          const clampedLeft = Math.max(8, Math.min(maxLeft, current.left));
+          const clampedTop = Math.max(8, Math.min(maxTop, current.top));
+          if (clampedLeft !== current.left || clampedTop !== current.top) {
             setDotPos({ top: clampedTop, left: clampedLeft });
           }
         }
@@ -114,22 +122,22 @@ export function InlineEditOverlay() {
 
     recompute();
 
-    const ro = new ResizeObserver(recompute);
+    const resizeObserver = new ResizeObserver(recompute);
     for (const id of ids) {
-      const el = document.getElementById(id);
-      if (el) ro.observe(el);
+      const element = document.getElementById(id);
+      if (element) resizeObserver.observe(element);
     }
     window.addEventListener("scroll", recompute, true);
     window.addEventListener("resize", recompute);
     const interval = window.setInterval(recompute, 750);
 
     return () => {
-      ro.disconnect();
+      resizeObserver.disconnect();
       window.removeEventListener("scroll", recompute, true);
       window.removeEventListener("resize", recompute);
       window.clearInterval(interval);
     };
-  }, [registry]);
+  }, [registry, refs.floating]);
 
   const setDotRef = useCallback(
     (el: HTMLButtonElement | null) => {
@@ -144,38 +152,44 @@ export function InlineEditOverlay() {
   const DRAG_THRESHOLD = 4;
   const DOT_SIZE = 32;
 
-  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    const cur = dotPosRef.current;
-    if (!cur) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = {
-      pointerId: e.pointerId,
-      offsetX: e.clientX - cur.left,
-      offsetY: e.clientY - cur.top,
-      startX: e.clientX,
-      startY: e.clientY,
-      moved: false,
-    };
-  }, []);
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      const cur = dotPosRef.current;
+      if (!cur) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      dragRef.current = {
+        pointerId: e.pointerId,
+        offsetX: e.clientX - cur.left,
+        offsetY: e.clientY - cur.top,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+    },
+    [],
+  );
 
-  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    if (!drag.moved) {
-      drag.moved = true;
-      setDragging(true);
-      setUserMoved(true);
-    }
-    const maxLeft = window.innerWidth - DOT_SIZE - 8;
-    const maxTop = window.innerHeight - DOT_SIZE - 8;
-    const left = Math.max(8, Math.min(maxLeft, e.clientX - drag.offsetX));
-    const top = Math.max(8, Math.min(maxTop, e.clientY - drag.offsetY));
-    setDotPos({ top, left });
-  }, []);
+  const onPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        setDragging(true);
+        setUserMoved(true);
+      }
+      const maxLeft = window.innerWidth - DOT_SIZE - 8;
+      const maxTop = window.innerHeight - DOT_SIZE - 8;
+      const left = Math.max(8, Math.min(maxLeft, e.clientX - drag.offsetX));
+      const top = Math.max(8, Math.min(maxTop, e.clientY - drag.offsetY));
+      setDotPos({ top, left });
+    },
+    [],
+  );
 
   const onPointerUp = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
@@ -193,11 +207,14 @@ export function InlineEditOverlay() {
     }
   }, []);
 
-  const onPointerCancel = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
-    dragRef.current = null;
-    setDragging(false);
-  }, []);
+  const onPointerCancel = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+      dragRef.current = null;
+      setDragging(false);
+    },
+    [],
+  );
 
   if (!dotPos) return null;
 
@@ -271,7 +288,11 @@ export function InlineEditOverlay() {
                 <button
                   type="button"
                   className={styles.modifiableHighlightLabel}
-                  style={{ top: labelPos.top, left: labelPos.left, cursor: "pointer" }}
+                  style={{
+                    top: labelPos.top,
+                    left: labelPos.left,
+                    cursor: "pointer",
+                  }}
                   title={`Mention #${id} in the chat`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -381,7 +402,12 @@ function pickLabelPosition(
   ];
 
   const dotRect = dot
-    ? { left: dot.left, top: dot.top, right: dot.left + 32, bottom: dot.top + 32 }
+    ? {
+        left: dot.left,
+        top: dot.top,
+        right: dot.left + 32,
+        bottom: dot.top + 32,
+      }
     : null;
 
   for (const c of candidates) {
@@ -392,5 +418,3 @@ function pickLabelPosition(
   }
   return candidates[0].relative;
 }
-
-

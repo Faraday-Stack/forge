@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 const ACCENT = {
-  info:    "#3b82f6",
+  info: "#3b82f6",
   warning: "#f59e0b",
-  error:   "#ef4444",
+  error: "#ef4444",
   success: "#22c55e",
 };
 

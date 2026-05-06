@@ -19,7 +19,6 @@ Peer dependencies: `react >=18`, `react-dom >=18`.
 ```tsx
 import {
   UIAgentProvider,
-  UIAgentLauncher,
   Modifiable,
   useModifiable,
 } from "@faraday-stack/forge";
@@ -42,7 +41,6 @@ function App() {
       }}
     >
       <Hero />
-      <UIAgentLauncher position="bottom-right" />
     </UIAgentProvider>
   );
 }

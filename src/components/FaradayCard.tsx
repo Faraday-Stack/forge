@@ -1,7 +1,7 @@
 const VARIANTS = {
-  default:  { borderWidth: 1, opacity: 1, fill: false },
+  default: { borderWidth: 1, opacity: 1, fill: false },
   outlined: { borderWidth: 1.5, opacity: 1, fill: false },
-  filled:   { borderWidth: 1, opacity: 1, fill: true },
+  filled: { borderWidth: 1, opacity: 1, fill: true },
 };
 
 export interface FaradayCardProps {
@@ -24,7 +24,9 @@ export function FaradayCard({
   return (
     <div
       style={{
-        background: v.fill ? "rgb(from currentColor r g b / 0.04)" : "transparent",
+        background: v.fill
+          ? "rgb(from currentColor r g b / 0.04)"
+          : "transparent",
         border: `${v.borderWidth}px solid currentColor`,
         borderRadius: 8,
         padding: "16px 20px",
@@ -40,9 +42,7 @@ export function FaradayCard({
       {title && (
         <div style={{ fontWeight: 600, fontSize: "1.05em" }}>{title}</div>
       )}
-      {body && (
-        <div style={{ opacity: 0.75 }}>{body}</div>
-      )}
+      {body && <div style={{ opacity: 0.75 }}>{body}</div>}
       {cta && (
         <a
           href={ctaHref ?? "#"}
