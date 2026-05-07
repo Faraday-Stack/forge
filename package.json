@@ -1,6 +1,6 @@
 {
   "name": "@faraday-stack/forge",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "description": "Let users dynamically modify your React app's UI via a conversational agent",
   "license": "MIT",
   "author": "Faraday",
