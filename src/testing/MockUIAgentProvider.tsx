@@ -66,7 +66,10 @@ export function MockUIAgentProvider({
   const original = store.getState().apply;
   store.setState({
     apply: (action: Parameters<typeof original>[0]) =>
-      original(action, onApplyRef.current ? (a) => onApplyRef.current?.(a) : undefined),
+      original(
+        action,
+        onApplyRef.current ? (a) => onApplyRef.current?.(a) : undefined,
+      ),
   });
 
   // Build a fake endpoint string; the mock interceptor below handles it
@@ -97,17 +100,22 @@ export function MockUIAgentProvider({
     if (!(globalThis.fetch as { __faradayMock?: boolean }).__faradayMock) {
       const wrapped = async function (
         input: RequestInfo | URL,
-        init?: RequestInit
+        init?: RequestInit,
       ): Promise<Response> {
-        const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : (input as Request).url;
 
         if (url === sentinel && handlerRef.current) {
           let userMessage = "";
           try {
-            const body = JSON.parse(init?.body as string ?? "{}");
-            const lastUser = [...(body.messages ?? [])].reverse().find(
-              (m: { role: string }) => m.role === "user"
-            );
+            const body = JSON.parse((init?.body as string) ?? "{}");
+            const lastUser = [...(body.messages ?? [])]
+              .reverse()
+              .find((m: { role: string }) => m.role === "user");
             userMessage = lastUser?.content ?? "";
           } catch {
             // ignore parse errors
@@ -165,12 +173,17 @@ export function MockUIAgentProvider({
 export async function runMockStream(
   store: ReturnType<typeof createAgentStore>,
   userMessage: string,
-  handler: MockStreamHandler
+  handler: MockStreamHandler,
 ): Promise<void> {
   const state = store.getState();
 
   state.appendMessage({ id: nanoid(), role: "user", content: userMessage });
-  state.appendMessage({ id: nanoid(), role: "assistant", content: "", streaming: true });
+  state.appendMessage({
+    id: nanoid(),
+    role: "assistant",
+    content: "",
+    streaming: true,
+  });
 
   const snapshot = state.snapshot();
   const events = handler(userMessage, snapshot);

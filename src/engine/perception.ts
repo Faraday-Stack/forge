@@ -58,11 +58,15 @@ export function extractTables(roots: HTMLElement[]): ExtractedTable[] {
       let bodyRows: HTMLTableRowElement[];
       if (headerCells.length > 0) {
         columns = headerCells.map((c) => c.textContent?.trim() ?? "");
-        bodyRows = Array.from(t.querySelectorAll("tbody tr")) as HTMLTableRowElement[];
+        bodyRows = Array.from(
+          t.querySelectorAll("tbody tr"),
+        ) as HTMLTableRowElement[];
       } else {
         // No <thead>: treat the first row as headers if all cells are <th> or
         // every cell has no other obvious structure.
-        const allRows = Array.from(t.querySelectorAll("tr")) as HTMLTableRowElement[];
+        const allRows = Array.from(
+          t.querySelectorAll("tr"),
+        ) as HTMLTableRowElement[];
         if (allRows.length < 2) continue;
         const first = allRows[0];
         columns = Array.from(first.children).map(
@@ -128,7 +132,9 @@ export function extractRepeatingLists(roots: HTMLElement[]): ExtractedList[] {
 
   for (const root of roots) {
     if (out.length >= MAX_LISTS) break;
-    const candidates = root.querySelectorAll("ul, ol, [role='list'], [data-list]");
+    const candidates = root.querySelectorAll(
+      "ul, ol, [role='list'], [data-list]",
+    );
     for (const c of Array.from(candidates)) {
       if (out.length >= MAX_LISTS) break;
       if (seen.has(c)) continue;
@@ -143,7 +149,8 @@ export function extractRepeatingLists(roots: HTMLElement[]): ExtractedList[] {
         entries.push(text.length > 80 ? text.slice(0, 80) + "…" : text);
       }
       if (entries.length < MIN_REPEATING_CHILDREN) continue;
-      const label = c.id || (c as HTMLElement).className?.split(/\s+/)?.[0] || "(unnamed)";
+      const label =
+        c.id || (c as HTMLElement).className?.split(/\s+/)?.[0] || "(unnamed)";
       out.push({ label, entries });
     }
   }
@@ -164,7 +171,9 @@ const NEIGHBORHOOD_PROPS = [
   "border",
 ] as const;
 
-export type ComputedSlice = Partial<Record<(typeof NEIGHBORHOOD_PROPS)[number], string>> & {
+export type ComputedSlice = Partial<
+  Record<(typeof NEIGHBORHOOD_PROPS)[number], string>
+> & {
   /** Rendered width in pixels (rounded). */
   widthPx?: number;
   /** Rendered height in pixels (rounded). */
@@ -272,9 +281,7 @@ function slugifyForId(text: string): string {
 export function autoInstrumentCards(store: AgentStore): void {
   if (typeof document === "undefined") return;
   const state = store.getState();
-  const ids = Object.keys(state.registry).filter(
-    (id) => !id.startsWith("__"),
-  );
+  const ids = Object.keys(state.registry).filter((id) => !id.startsWith("__"));
   if (ids.length === 0) return;
 
   const seen = new Set<Element>();
@@ -295,7 +302,8 @@ export function autoInstrumentCards(store: AgentStore): void {
       // own ids (prefixed) get short-circuited here too.
       if (el.id) continue;
 
-      const text = (el as HTMLElement).innerText?.replace(/\s+/g, " ").trim() ?? "";
+      const text =
+        (el as HTMLElement).innerText?.replace(/\s+/g, " ").trim() ?? "";
       const slug = slugifyForId(text) || `card-${counter++}`;
       let newId = AUTO_ID_PREFIX + slug;
       // Avoid id collisions by suffixing a counter when needed.
@@ -346,7 +354,8 @@ const MAX_DOM_SCAN = 400;
  * pass — better to leave the agent without a hint than to mislead it.
  */
 export function findReferenceCard(store: AgentStore): ReferenceCard | null {
-  if (typeof document === "undefined" || typeof window === "undefined") return null;
+  if (typeof document === "undefined" || typeof window === "undefined")
+    return null;
 
   const widths: number[] = [];
   const heights: number[] = [];

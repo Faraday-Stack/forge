@@ -92,8 +92,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -121,8 +120,7 @@
   border-radius: 6px;
   background: #ffffff;
   color: #525252;
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -349,8 +347,7 @@
   align-items: center;
   justify-content: center;
   color: #8a8a8a;
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   letter-spacing: 0.01em;
   text-align: center;
@@ -372,8 +369,7 @@
   position: absolute;
   background: #f97316;
   color: #ffffff;
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -397,8 +393,12 @@
 }
 
 @keyframes faradayHighlightFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modifiableHighlightPulsing {
@@ -407,12 +407,14 @@
 }
 
 @keyframes faradayHighlightPulse {
-  0%, 100% {
+  0%,
+  100% {
     border-color: #f97316;
     box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
     transform: scale(1);
   }
-  25%, 75% {
+  25%,
+  75% {
     border-color: #fb923c;
     box-shadow: 0 0 0 14px rgba(249, 115, 22, 0.5);
     transform: scale(1.04);
@@ -468,7 +470,9 @@
   background: #ffffff;
   border: 1px solid #d1d5db;
   border-radius: 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.06);
   padding: 10px 12px;
   width: 380px;
   max-width: calc(100vw - 24px);
@@ -482,8 +486,7 @@
 }
 
 .inlineTarget {
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   color: #6b7280;
   letter-spacing: 0.02em;
@@ -500,7 +503,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .inlineCloseBtn:hover {
@@ -531,7 +536,8 @@
 
 [data-faraday-dragging="true"] {
   cursor: grabbing;
-  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.85),
+  box-shadow:
+    0 0 0 2px rgba(249, 115, 22, 0.85),
     0 12px 28px rgba(0, 0, 0, 0.18);
 }
 
@@ -554,8 +560,7 @@
 .editGrid label {
   font-size: 11px;
   color: #374151;
-  font-family:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: nowrap;
 }
 
@@ -568,7 +573,9 @@
   font-family: inherit;
   outline: none;
   background: #f9fafb;
-  transition: border-color 0.12s, background 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
 }
 
 .editInput:focus {
@@ -594,7 +601,9 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .editApplyBtn {
@@ -636,7 +645,10 @@
   font-family: inherit;
   background: #fff;
   color: #374151;
-  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    color 0.12s;
 }
 
 .presetBtn:hover {
@@ -660,7 +672,9 @@
   border-radius: 6px;
   cursor: pointer;
   background: transparent;
-  transition: border-color 0.12s, opacity 0.12s;
+  transition:
+    border-color 0.12s,
+    opacity 0.12s;
 }
 
 .swatch::-webkit-color-swatch-wrapper {
@@ -696,7 +710,9 @@
   line-height: 1;
   font-family: inherit;
   z-index: 2147483645;
-  transition: background 0.12s, transform 0.08s;
+  transition:
+    background 0.12s,
+    transform 0.08s;
 }
 
 .addComponentBtn:hover {

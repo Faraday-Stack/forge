@@ -134,7 +134,10 @@ export const TOOL_SCHEMA = [
     input_schema: {
       type: "object",
       properties: {
-        targetId: { type: "string", description: "Id of the container to reflow." },
+        targetId: {
+          type: "string",
+          description: "Id of the container to reflow.",
+        },
         mode: {
           type: "string",
           enum: ["list", "grid", "kanban", "timeline"],
@@ -159,7 +162,10 @@ export const TOOL_SCHEMA = [
     input_schema: {
       type: "object",
       properties: {
-        instanceId: { type: "string", description: "instanceId of the inserted component to remove." },
+        instanceId: {
+          type: "string",
+          description: "instanceId of the inserted component to remove.",
+        },
       },
       required: ["instanceId"],
     },
@@ -171,7 +177,10 @@ export const TOOL_SCHEMA = [
     input_schema: {
       type: "object",
       properties: {
-        targetId: { type: "string", description: "Anchor id the injection is attached to." },
+        targetId: {
+          type: "string",
+          description: "Anchor id the injection is attached to.",
+        },
         injectionId: { type: "string" },
       },
       required: ["targetId", "injectionId"],
@@ -184,7 +193,10 @@ export const TOOL_SCHEMA = [
     input_schema: {
       type: "object",
       properties: {
-        targetId: { type: "string", description: "Id of the modifiable element to mutate." },
+        targetId: {
+          type: "string",
+          description: "Id of the modifiable element to mutate.",
+        },
         attributes: {
           type: "object",
           description:

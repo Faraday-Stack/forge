@@ -12,7 +12,15 @@ const VOCAB: Record<string, string[]> = {
   warm: ["warm", "cozy", "friendly", "inviting", "earthy"],
   cool: ["cool", "calm", "icy", "blue", "cold"],
   bold: ["bold", "punchy", "vibrant", "loud", "energetic", "striking"],
-  subtle: ["subtle", "muted", "soft", "understated", "quiet", "minimal", "minimalist"],
+  subtle: [
+    "subtle",
+    "muted",
+    "soft",
+    "understated",
+    "quiet",
+    "minimal",
+    "minimalist",
+  ],
   playful: ["playful", "fun", "whimsical", "quirky", "cute"],
   professional: ["professional", "corporate", "serious", "polished"],
   modern: ["modern", "sleek", "contemporary", "current"],
@@ -65,7 +73,10 @@ export const EMPTY_VIBE_PREFERENCES: VibePreferences = {
 
 const MAX_LAST_REQUEST_LEN = 200;
 
-export function mergeVibe(prev: VibePreferences, message: string): VibePreferences {
+export function mergeVibe(
+  prev: VibePreferences,
+  message: string,
+): VibePreferences {
   const tags = extractVibeTags(message);
   if (tags.length === 0) return prev;
   const next: Record<string, number> = { ...prev.tags };
@@ -87,7 +98,9 @@ export function renderVibePreferences(prefs: VibePreferences): string {
   // Sort by frequency desc, take top 6.
   entries.sort((a, b) => b[1] - a[1]);
   const top = entries.slice(0, 6).map(([tag]) => tag);
-  const parts: string[] = [`The user has gestured toward: **${top.join(", ")}**.`];
+  const parts: string[] = [
+    `The user has gestured toward: **${top.join(", ")}**.`,
+  ];
   if (prefs.lastTonalRequest) {
     parts.push(`Most recent tonal request: "${prefs.lastTonalRequest}".`);
   }

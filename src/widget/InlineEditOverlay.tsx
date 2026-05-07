@@ -26,8 +26,8 @@ import styles from "./widget.module.css";
  */
 export function InlineEditOverlay() {
   const store = useAgentStore();
-  const registry = useStore(store, (s) => s.registry);
-  const pulsingIds = useStore(store, (s) => s.pulsingIds);
+  const registry = useStore(store, (state) => state.registry);
+  const pulsingIds = useStore(store, (state) => state.pulsingIds);
   const [collapsed, setCollapsed] = useState(true);
   const [dotPos, setDotPos] = useState<{ top: number; left: number } | null>(
     null,
@@ -74,9 +74,9 @@ export function InlineEditOverlay() {
       let topRect: DOMRect | null = null;
 
       for (const id of ids) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
+        const element = document.getElementById(id);
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) continue;
         next[id] = rect;
         const absTop = rect.top + window.scrollY;
@@ -153,17 +153,17 @@ export function InlineEditOverlay() {
   const DOT_SIZE = 32;
 
   const onPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>) => {
-      if (e.button !== 0 && e.pointerType === "mouse") return;
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0 && event.pointerType === "mouse") return;
       const cur = dotPosRef.current;
       if (!cur) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
+      event.currentTarget.setPointerCapture(event.pointerId);
       dragRef.current = {
-        pointerId: e.pointerId,
-        offsetX: e.clientX - cur.left,
-        offsetY: e.clientY - cur.top,
-        startX: e.clientX,
-        startY: e.clientY,
+        pointerId: event.pointerId,
+        offsetX: event.clientX - cur.left,
+        offsetY: event.clientY - cur.top,
+        startX: event.clientX,
+        startY: event.clientY,
         moved: false,
       };
     },
@@ -171,11 +171,11 @@ export function InlineEditOverlay() {
   );
 
   const onPointerMove = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>) => {
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
       const drag = dragRef.current;
-      if (!drag || drag.pointerId !== e.pointerId) return;
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
       if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       if (!drag.moved) {
         drag.moved = true;
@@ -184,8 +184,8 @@ export function InlineEditOverlay() {
       }
       const maxLeft = window.innerWidth - DOT_SIZE - 8;
       const maxTop = window.innerHeight - DOT_SIZE - 8;
-      const left = Math.max(8, Math.min(maxLeft, e.clientX - drag.offsetX));
-      const top = Math.max(8, Math.min(maxTop, e.clientY - drag.offsetY));
+      const left = Math.max(8, Math.min(maxLeft, event.clientX - drag.offsetX));
+      const top = Math.max(8, Math.min(maxTop, event.clientY - drag.offsetY));
       setDotPos({ top, left });
     },
     [],

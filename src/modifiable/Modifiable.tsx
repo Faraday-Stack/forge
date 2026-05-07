@@ -112,11 +112,31 @@ export function Modifiable<T extends ElementType = "div">({
     }
     ref.current.animate(
       [
-        { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)", offset: 0 },
-        { transform: "scale(1.08)", boxShadow: "0 0 0 14px rgba(249, 115, 22, 0.55)", offset: 0.25 },
-        { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)", offset: 0.5 },
-        { transform: "scale(1.08)", boxShadow: "0 0 0 14px rgba(249, 115, 22, 0.55)", offset: 0.75 },
-        { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)", offset: 1 },
+        {
+          transform: "scale(1)",
+          boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)",
+          offset: 0,
+        },
+        {
+          transform: "scale(1.08)",
+          boxShadow: "0 0 0 14px rgba(249, 115, 22, 0.55)",
+          offset: 0.25,
+        },
+        {
+          transform: "scale(1)",
+          boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)",
+          offset: 0.5,
+        },
+        {
+          transform: "scale(1.08)",
+          boxShadow: "0 0 0 14px rgba(249, 115, 22, 0.55)",
+          offset: 0.75,
+        },
+        {
+          transform: "scale(1)",
+          boxShadow: "0 0 0 0 rgba(249, 115, 22, 0)",
+          offset: 1,
+        },
       ],
       { duration: 2000, iterations: 1, easing: "ease-in-out" },
     );
@@ -195,7 +215,9 @@ export function Modifiable<T extends ElementType = "div">({
   // Group agent-injected HTML by where it should go relative to this element.
   const injBefore = injections.filter((i) => i.position === "before");
   const injAfter = injections.filter((i) => i.position === "after");
-  const injInsideStart = injections.filter((i) => i.position === "inside-start");
+  const injInsideStart = injections.filter(
+    (i) => i.position === "inside-start",
+  );
   const injInsideEnd = injections.filter((i) => i.position === "inside-end");
 
   const renderInjection = (i: { injectionId: string; html: string }) => (

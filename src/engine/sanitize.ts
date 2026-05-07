@@ -62,10 +62,10 @@ const DANGEROUS_URL_PREFIXES = [
 ];
 
 const ALWAYS_BLOCKED_ATTRS = new Set([
-  "id",      // would re-key the registry
-  "style",   // applyStyle's job
-  "class",   // high-leverage for theme attacks; off by default
-  "srcdoc",  // arbitrary HTML in iframes
+  "id", // would re-key the registry
+  "style", // applyStyle's job
+  "class", // high-leverage for theme attacks; off by default
+  "srcdoc", // arbitrary HTML in iframes
   "sandbox", // dropping it weakens iframe isolation
 ]);
 
@@ -138,7 +138,13 @@ export function sanitizeHtmlMarkup(input: string): string {
   html = html.replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, "");
   html = html.replace(/\s+on[a-z]+\s*=\s*[^\s>]+/gi, "");
   // Strip javascript: in any attribute.
-  html = html.replace(/(href|src|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi, "");
-  html = html.replace(/(href|src|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi, "");
+  html = html.replace(
+    /(href|src|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi,
+    "",
+  );
+  html = html.replace(
+    /(href|src|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi,
+    "",
+  );
   return html.trim();
 }

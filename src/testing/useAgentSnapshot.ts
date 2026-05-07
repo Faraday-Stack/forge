@@ -1,6 +1,13 @@
 import { useStore } from "zustand";
 import { useAgentStore } from "../provider/context";
-import type { Override, InsertedComponent, InverseAction, ModifiableEntry, ChatMessage, Action } from "../types";
+import type {
+  Override,
+  InsertedComponent,
+  InverseAction,
+  ModifiableEntry,
+  ChatMessage,
+  Action,
+} from "../types";
 
 export interface AgentSnapshot {
   overrides: Record<string, Override>;

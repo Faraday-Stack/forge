@@ -26,7 +26,9 @@ function useResolvedStyle(
   id: string,
   overrides: Record<string, Override>,
 ): CSSProperties {
-  const [resolved, setResolved] = useState<CSSProperties>(() => overrides[id]?.style ?? {});
+  const [resolved, setResolved] = useState<CSSProperties>(
+    () => overrides[id]?.style ?? {},
+  );
   useLayoutEffect(() => {
     const own = overrides[id]?.style ?? {};
     if (typeof document === "undefined") {

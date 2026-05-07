@@ -104,7 +104,11 @@ export function useDragHandle(
           newOrder.splice(dropIndex, 0, id);
           store
             .getState()
-            .apply({ type: "reorder", containerId: containerId!, order: newOrder });
+            .apply({
+              type: "reorder",
+              containerId: containerId!,
+              order: newOrder,
+            });
         }
       }
 
@@ -151,7 +155,10 @@ interface SiblingRect {
   rect: DOMRect;
 }
 
-function collectSiblings(containerEl: HTMLElement, excludeId: string): SiblingRect[] {
+function collectSiblings(
+  containerEl: HTMLElement,
+  excludeId: string,
+): SiblingRect[] {
   const result: SiblingRect[] = [];
   const walk = (parent: Element) => {
     for (const child of Array.from(parent.children)) {
@@ -180,7 +187,10 @@ function findDropIndex(siblings: SiblingRect[], x: number, y: number): number {
   for (let i = 1; i < siblings.length; i++) {
     const a = siblings[i - 1].rect;
     const b = siblings[i].rect;
-    const verticalOverlap = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    const verticalOverlap = Math.max(
+      0,
+      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top),
+    );
     if (verticalOverlap > Math.min(a.height, b.height) * 0.5) {
       horizontal = true;
       break;

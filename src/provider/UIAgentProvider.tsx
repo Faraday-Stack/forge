@@ -12,36 +12,36 @@ import type { FormSubmitHandler } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
 import { loadOverrides } from "../persistence/client";
-import { loadClientSnapshot, saveClientSnapshot } from "../persistence/clientStorage";
+import {
+  loadClientSnapshot,
+  saveClientSnapshot,
+} from "../persistence/clientStorage";
 import { InlineEditOverlay } from "../widget/InlineEditOverlay";
+import { getDevApiUrl, getDevEndpoint } from "../utils/devConfig";
 
 /**
- * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses
- * `Modifiable` or `useModifiable`.
+ * Root provider for the Faraday UI agent. Must wrap any part of the tree that uses `Modifiable` or `useModifiable`.
  *
- * Operates in two modes — supply exactly one:
- * - **Self-hosted**: `endpoint` pointing at your backend's streaming route
- * - **SaaS**: `publishableKey` (with optional `userToken`)
- *
- * `userToken` is optional; when omitted it defaults to `null` and the backend applies a stricter
+ * Pass a `publishableKey` from the Faraday dashboard. `userToken` is optional;
+ * when omitted it defaults to `null` and the backend applies a stricter
  * anonymous rate limit.
  *
- * @throws if neither `publishableKey` nor `endpoint` is provided
+ * @throws if `publishableKey` is missing (and no local-dev endpoint is configured via env vars)
  */
 export function UIAgentProvider({
   publishableKey,
   userToken = null,
-  endpoint,
-  apiUrl,
   components = {},
   permissions = {},
   onAction,
   onFormSubmit,
   children,
 }: UIAgentProviderProps) {
+  const endpoint = getDevEndpoint();
+  const apiUrl = getDevApiUrl();
   if (!publishableKey && !endpoint) {
     throw new Error(
-      "[Faraday] UIAgentProvider requires either `publishableKey` (SaaS mode) or `endpoint` (self-hosted mode).",
+      "[Faraday] UIAgentProvider requires a `publishableKey`.",
     );
   }
   const storeRef = useRef<ReturnType<typeof createAgentStore> | null>(null);
@@ -103,7 +103,9 @@ export function UIAgentProvider({
     loadOverrides(connection)
       .then((snapshot) => {
         if (cancelled) return;
-        const fallback = !snapshot ? loadClientSnapshot(persist, publishableKey, path) : null;
+        const fallback = !snapshot
+          ? loadClientSnapshot(persist, publishableKey, path)
+          : null;
         const chosen = snapshot ?? fallback;
         if (!chosen) return;
         queueMicrotask(() => {
@@ -140,7 +142,12 @@ export function UIAgentProvider({
         clearTimeout(timer);
         timer = null;
       }
-      saveClientSnapshot(persist, publishableKey, path, patchedStore.getState().getPersistableState());
+      saveClientSnapshot(
+        persist,
+        publishableKey,
+        path,
+        patchedStore.getState().getPersistableState(),
+      );
     };
     const writeDebounced = () => {
       pending = true;

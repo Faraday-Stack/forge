@@ -1,6 +1,10 @@
 import { createStore } from "zustand/vanilla";
 import type { CSSProperties } from "react";
-import { sanitizeStyleValue, sanitizeCssVarName, sanitizeAttributes } from "../engine/sanitize";
+import {
+  sanitizeStyleValue,
+  sanitizeCssVarName,
+  sanitizeAttributes,
+} from "../engine/sanitize";
 import {
   EMPTY_VIBE_PREFERENCES,
   mergeVibe,
@@ -58,13 +62,36 @@ const DEFAULT_PERMISSIONS: PermissionsConfig = {
     "flexShrink",
   ],
   allowedAttributes: [
-    "href", "src", "alt", "title", "placeholder", "type", "value",
-    "name", "for", "checked", "disabled", "readonly", "required",
-    "min", "max", "step", "pattern", "maxlength", "minlength",
-    "rows", "cols", "wrap",
-    "target", "rel", "download", "loading",
-    "role", "tabindex",
-    "aria-*", "data-*",
+    "href",
+    "src",
+    "alt",
+    "title",
+    "placeholder",
+    "type",
+    "value",
+    "name",
+    "for",
+    "checked",
+    "disabled",
+    "readonly",
+    "required",
+    "min",
+    "max",
+    "step",
+    "pattern",
+    "maxlength",
+    "minlength",
+    "rows",
+    "cols",
+    "wrap",
+    "target",
+    "rel",
+    "download",
+    "loading",
+    "role",
+    "tabindex",
+    "aria-*",
+    "data-*",
   ],
   maxUndoDepth: 50,
   persist: "none",
@@ -213,7 +240,8 @@ export function createAgentStore(
         }
         const scope = action.scope ?? "element";
         const sliceKey = scope === "descendants" ? "descendantStyle" : "style";
-        const prev = (nextOverrides[action.targetId]?.[sliceKey] ?? {}) as CSSProperties;
+        const prev = (nextOverrides[action.targetId]?.[sliceKey] ??
+          {}) as CSSProperties;
         const prevSlice: CSSProperties = {};
         for (const k of Object.keys(sanitized)) {
           (prevSlice as Record<string, unknown>)[k] = (
@@ -326,16 +354,14 @@ export function createAgentStore(
           if (cleanValue == null) continue;
           cleanedNew[name] = cleanValue;
         }
-        if (
-          Object.keys(cleanedNew).length === 0 &&
-          cleared.length === 0
-        ) {
+        if (Object.keys(cleanedNew).length === 0 && cleared.length === 0) {
           return "applyTheme: no valid variables after sanitization";
         }
         // Inverse: previous values for every name we touched (null = was unset).
         const inverseVars: Record<string, string | null> = {};
         for (const name of [...Object.keys(cleanedNew), ...cleared]) {
-          inverseVars[name] = name in nextThemeVars ? nextThemeVars[name] : null;
+          inverseVars[name] =
+            name in nextThemeVars ? nextThemeVars[name] : null;
         }
         const merged = { ...nextThemeVars, ...cleanedNew };
         for (const name of cleared) delete merged[name];
@@ -469,7 +495,15 @@ export function createAgentStore(
     },
 
     undo(steps = 1) {
-      const { history, overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes } = get();
+      const {
+        history,
+        overrides,
+        insertedComponents,
+        containerOrder,
+        injections,
+        themeVars,
+        layoutModes,
+      } = get();
       let nextOverrides = { ...overrides };
       let nextInserted = { ...insertedComponents };
       let nextContainerOrder = { ...containerOrder };
@@ -487,7 +521,8 @@ export function createAgentStore(
           if ("targetId" in inv) touched.push(inv.targetId);
           else if ("containerId" in inv) touched.push(inv.containerId);
           if (inv.type === "applyStyle") {
-            const sliceKey = inv.scope === "descendants" ? "descendantStyle" : "style";
+            const sliceKey =
+              inv.scope === "descendants" ? "descendantStyle" : "style";
             nextOverrides[inv.targetId] = {
               ...nextOverrides[inv.targetId],
               [sliceKey]: {
@@ -548,7 +583,10 @@ export function createAgentStore(
             touched.push(inv.containerId, inv.component.instanceId);
           } else if (inv.type === "injectHTML") {
             const tId = inv.injection.targetId;
-            nextInjections[tId] = [...(nextInjections[tId] ?? []), inv.injection];
+            nextInjections[tId] = [
+              ...(nextInjections[tId] ?? []),
+              inv.injection,
+            ];
             touched.push(tId);
           } else if (inv.type === "applyTheme") {
             for (const [name, value] of Object.entries(inv.vars)) {
@@ -624,7 +662,9 @@ export function createAgentStore(
           return {
             ...entry,
             ...(style !== undefined && { currentStyle: style }),
-            ...(descendantStyle !== undefined && { currentDescendantStyle: descendantStyle }),
+            ...(descendantStyle !== undefined && {
+              currentDescendantStyle: descendantStyle,
+            }),
             ...(attributes !== undefined && { currentAttributes: attributes }),
           };
         }),
@@ -672,8 +712,22 @@ export function createAgentStore(
     },
 
     getPersistableState() {
-      const { overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes } = get();
-      return { overrides, insertedComponents, containerOrder, injections, themeVars, layoutModes };
+      const {
+        overrides,
+        insertedComponents,
+        containerOrder,
+        injections,
+        themeVars,
+        layoutModes,
+      } = get();
+      return {
+        overrides,
+        insertedComponents,
+        containerOrder,
+        injections,
+        themeVars,
+        layoutModes,
+      };
     },
 
     hydrate(snapshot) {

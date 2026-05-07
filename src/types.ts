@@ -171,7 +171,11 @@ export type InverseAction =
   /** Inverse of `injectHTML` — removes the just-injected fragment. */
   | { type: "restoreInjection"; injectionId: string }
   /** Inverse of `removeComponent` — re-inserts the removed component at its original position. */
-  | { type: "insertComponent"; containerId: string; component: InsertedComponent }
+  | {
+      type: "insertComponent";
+      containerId: string;
+      component: InsertedComponent;
+    }
   /** Inverse of `removeInjection` — re-creates the removed injection with its original payload. */
   | { type: "injectHTML"; injection: HtmlInjection }
   | { type: "applyTheme"; vars: Record<string, string | null> }
@@ -234,32 +238,36 @@ export interface ComponentRegistryEntry {
   propsSchema?: Record<string, string>;
 }
 
-/** Connection parameters resolved by `streamAgentResponse`. One of the two modes must be provided. */
+/**
+ * @internal
+ *
+ * Resolved connection parameters used by the streaming and persistence clients.
+ * Not part of the public SDK surface — `endpoint` / `apiUrl` are populated from
+ * environment variables for local development only (see `utils/devConfig.ts`).
+ */
 export interface AgentConnectionConfig {
-  /** SaaS mode: publishable key issued by the Faraday dashboard. Requires `userToken`. */
+  /** Publishable key issued by the Faraday dashboard. */
   publishableKey?: string;
-  /** SaaS mode: JWT identifying the end user. When null/undefined the backend applies an anonymous (stricter) rate limit. */
+  /** JWT identifying the end user. When null/undefined the backend applies an anonymous (stricter) rate limit. */
   userToken?: string | null;
-  /** Self-hosted mode: full URL of your backend's streaming endpoint. */
+  /** @internal Local-dev override: full URL of the streaming endpoint. */
   endpoint?: string;
-  /** Override the default SaaS API URL (`https://api.faraday.ai/v1/stream`). */
+  /** @internal Local-dev override: SaaS API base URL. */
   apiUrl?: string;
 }
 
 /**
- * Props for `UIAgentProvider`. Operates in one of two modes:
+ * Props for `UIAgentProvider`.
  *
- * **Self-hosted** — provide `endpoint` pointing at your own backend:
- * ```tsx
- * <UIAgentProvider endpoint="https://myapp.com/api/stream">
- * ```
- *
- * **SaaS** — provide `publishableKey` + `userToken` from the Faraday dashboard:
  * ```tsx
  * <UIAgentProvider publishableKey="pk_live_..." userToken={jwt}>
  * ```
  */
-export interface UIAgentProviderProps extends AgentConnectionConfig {
+export interface UIAgentProviderProps {
+  /** Publishable key issued by the Faraday dashboard. Required. */
+  publishableKey?: string;
+  /** Per-user JWT minted by your backend. When null/undefined the backend applies an anonymous (stricter) rate limit. */
+  userToken?: string | null;
   /** Additional components the agent can insert. Merged with DEFAULT_COMPONENTS. */
   components?: Record<string, ComponentRegistryEntry>;
   /** Override default permissions (allowed CSS props, undo depth, persistence). */

@@ -21,12 +21,15 @@ interface ChatPanelProps {
 export function ChatPanel({ onClose }: ChatPanelProps) {
   const store = useAgentStore();
   const connection = useAgentConnection();
-  const messages = useStore(store, (s) => s.messages);
-  const overrides = useStore(store, (s) => s.overrides);
-  const insertedComponents = useStore(store, (s) => s.insertedComponents);
-  const injections = useStore(store, (s) => s.injections);
-  const themeVars = useStore(store, (s) => s.themeVars);
-  const layoutModes = useStore(store, (s) => s.layoutModes);
+  const messages = useStore(store, (state) => state.messages);
+  const overrides = useStore(store, (state) => state.overrides);
+  const insertedComponents = useStore(
+    store,
+    (state) => state.insertedComponents,
+  );
+  const injections = useStore(store, (state) => state.injections);
+  const themeVars = useStore(store, (state) => state.themeVars);
+  const layoutModes = useStore(store, (state) => state.layoutModes);
 
   const [input, setInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -40,20 +43,20 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isStreaming = messages.some((m) => m.streaming);
+  const isStreaming = messages.some((messages) => messages.streaming);
 
   useEffect(() => {
     if (messages.length === 0) return;
-    const el = messagesRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    const element = messagesRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
   }, [messages]);
 
   // Listen for `@id` mentions dispatched by InlineEditOverlay's labels.
   // Append `#id ` to whatever the user has typed, focus, and place caret at end.
   useEffect(() => {
-    function onMention(e: Event) {
-      const ce = e as CustomEvent<{ id: string }>;
-      const id = ce.detail?.id;
+    function onMention(event: Event) {
+      const customEvent = event as CustomEvent<{ id: string }>;
+      const id = customEvent.detail?.id;
       if (!id) return;
       const token = `#${id} `;
       setInput((cur) => {
@@ -62,10 +65,13 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         return cur + sep + token;
       });
       requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        ta.focus();
-        ta.setSelectionRange(ta.value.length, ta.value.length);
+        const textArea = textareaRef.current;
+        if (!textArea) return;
+        textArea.focus();
+        textArea.setSelectionRange(
+          textArea.value.length,
+          textArea.value.length,
+        );
       });
     }
     window.addEventListener("faraday:mention", onMention);
@@ -144,8 +150,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   }, []);
 
   const onEmailModalSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
+    (event: React.FormEvent) => {
+      event.preventDefault();
       const trimmed = emailInput.trim();
       if (!trimmed || !/.+@.+\..+/.test(trimmed)) return;
       setEmailModalOpen(false);

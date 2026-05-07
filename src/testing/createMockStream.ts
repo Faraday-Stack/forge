@@ -14,7 +14,7 @@ export interface MockStreamOptions {
 
 export type MockStreamHandler = (
   userMessage: string,
-  snapshot: PageSnapshot
+  snapshot: PageSnapshot,
 ) => AsyncIterable<StreamEvent>;
 
 function delay(ms: number): Promise<void> {
@@ -34,7 +34,7 @@ function delay(ms: number): Promise<void> {
  */
 export function createMockStream(
   events: MockStreamEvent[],
-  options: MockStreamOptions = {}
+  options: MockStreamOptions = {},
 ): MockStreamHandler {
   const { delayMs = 30 } = options;
 

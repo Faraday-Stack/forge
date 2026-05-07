@@ -65,7 +65,10 @@ export function dispatchToolUse(
       // (`beforebegin`, `afterend`, etc.) instead of our enum. Alias them
       // rather than silently fall back to "after" — that's what was sending
       // "above" requests below the target.
-      const POSITION_ALIASES: Record<string, "before" | "after" | "inside-start" | "inside-end"> = {
+      const POSITION_ALIASES: Record<
+        string,
+        "before" | "after" | "inside-start" | "inside-end"
+      > = {
         before: "before",
         after: "after",
         "inside-start": "inside-start",
