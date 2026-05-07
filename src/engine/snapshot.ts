@@ -4,9 +4,11 @@ import { getDomSnippet, getElementSource } from "../utils/source";
 import { buildSpatialTree, renderTreeOutline } from "./spatialTree";
 import {
   analyzeThemeCharacter,
+  autoInstrumentCards,
   extractNeighborhoodStyles,
   extractRepeatingLists,
   extractTables,
+  findReferenceCard,
 } from "./perception";
 import { renderVibePreferences } from "./vibe";
 import { TOOL_SCHEMA } from "./tools";
@@ -123,6 +125,11 @@ function detectHostThemeVars(): Record<string, string> {
 }
 
 export function buildSystemPrompt(store: AgentStore): string {
+  // Auto-instrument card-shaped DOM elements so the agent has finer-grained
+  // anchor targets even when the host only registered a top-level Modifiable.
+  // Idempotent — only newly-discovered cards get registered.
+  autoInstrumentCards(store);
+
   const snap = buildSnapshot(store);
   const { allowedStyleProps } = store.getState().permissions;
   const tree = buildSpatialTree(store);
@@ -145,6 +152,7 @@ export function buildSystemPrompt(store: AgentStore): string {
   const lists = extractRepeatingLists(registeredRoots);
   const neighborhoods = extractNeighborhoodStyles(store);
   const themeCharacter = analyzeThemeCharacter(store);
+  const referenceCard = findReferenceCard(store);
   const vibeHint = renderVibePreferences(store.getState().vibePreferences);
 
   return [
@@ -184,6 +192,9 @@ export function buildSystemPrompt(store: AgentStore): string {
     "",
     themeCharacter.summary
       ? `## Page feel\n${themeCharacter.summary}. Match this when adding new elements — borrow the rhythm rather than imposing your own.\n`
+      : "",
+    referenceCard
+      ? `## Reference card size\nThe typical card on this page is **${referenceCard.widthPx}×${referenceCard.heightPx}px** (median across ${referenceCard.count} card-shaped elements). When you inject a chart, widget, or any new card-style element, **size it to roughly match these dimensions**. The wrapper should cap at \`max-width: ${referenceCard.widthPx}px\` and the rendered height should land within ~10% of ${referenceCard.heightPx}px. This is the single most important constraint for fitting in — even when the user says \"add a chart here\" and \"here\" is a wide section, the chart still gets card-sized so it slots in alongside existing cards rather than dominating.\n`
       : "",
     vibeHint
       ? `## Established preferences this session\n${vibeHint}\n`
@@ -311,14 +322,35 @@ export function buildSystemPrompt(store: AgentStore): string {
     "- `inside-start` — first child inside the target (use for \"at the top of this card\", \"prepend\")",
     "- `inside-end` — last child inside the target (use for \"at the bottom of this card\", \"append\")",
     "",
+    "**Sanity-check the data before charting.** A \"histogram\" or \"bar chart\" of a single value is just a single bar — useless. If the user asks for a chart but the only data on the page is one number (e.g. \"$124,500 cash balance\" with no time-series, no breakdown, no related rows), pick a more useful primitive: a small KPI tile, a sparkline of related data if any list is available (e.g. transactions over time), OR ship a one-bar chart sized like a single small badge — never a full-card sized bar with one tall rectangle. Mention in your reply what you chose and why.",
+    "",
+    "**Repositioning / centering / move requests.** If the user says \"move this to the middle\", \"too far left\", \"bring it to the right\", \"center it\", or anything else describing a layout problem with an existing injection: this is NOT a new chart request. Look up the existing injection in `Active HTML injections`, call `removeInjection` to delete it, then `injectHTML` AGAIN with the layout fix applied. Two ways to apply layout:",
+    "  - **Re-anchor**: pick a different `targetId` or `position` that lands the content where the user wants. e.g. anchoring `inside-end` on a wide centered container will land the new element at the bottom of that container's flow.",
+    "  - **Re-style the wrapper**: include `style=\"display: block; margin: 16px auto;\"` (or `margin-left: auto; margin-right: auto;`) on the outermost wrapper of the HTML you inject. This horizontally centers the wrapper inside its parent regardless of where the parent puts it.",
+    "Never reply with \"I'll move it\" without actually issuing the removeInjection + injectHTML pair. The user can't see the change unless tools fire.",
+    "",
+    "**Default wrapper positioning for new charts/widgets.** When you inject any visual that's not meant to be a full-bleed banner, the outermost wrapper should include `display: block; margin: 16px auto;` so the wrapper centers in its parent when the parent has extra width. Wide parent + un-styled wrapper = chart jams to the left edge — that's the failure mode you're avoiding.",
+    "",
+    "**Picking the anchor — DEFAULT to bottom-of-page, not a single card slot.**",
+    "For a request like \"add a chart at the bottom\" / \"below this section\" / \"add a graph here\" with no specific small-card reference, the right anchor is the **outermost wide container** (the one with the largest `widthPx` in the visual fingerprint — typically the page root or a top-level section). Use `position: 'inside-end'` on that wide container. The new element then renders at the bottom of the entire content area in normal block flow, full row width, centered by the wrapper rule above.",
+    "**Do NOT anchor `position: 'after'` on a small card** for this kind of request. CSS grid/flex parents will reflow the new element into the next card-grid slot — which lands it in a column, jammed to the left edge of that column, where the user won't expect it. \"After the Cash Balance card\" in source order is rarely what \"at the bottom\" means visually.",
+    "Counter-example: if the user explicitly says \"right next to the Cash Balance card\" or \"directly below this card\" pointing at one card, THEN anchor on that card. The rule applies to ambiguous spatial language, not explicit references.",
+    "",
     "**Quality bar for SVG charts.** A chart that looks generic — uniform bars, no values, no axis, no title — is a failure. Required elements:",
-    "- **Title row** above the SVG: same typography weight as neighboring card titles (`fontWeight: 600`, `fontSize: 14px` or larger). Inherit color, no underline.",
+    "- **Size discipline — derived from the target, not hardcoded.** A chart must fit *the place it's anchored to*. Read `widthPx` and `heightPx` for the target id from the visual fingerprint, and for a typical *card-like* element on the page. Then:",
+    "  - **Pick the right reference width.** If the user said \"add a chart **here**\" and `here` is a wide section/grid container (its `widthPx` is much larger than the cards inside it, e.g. >700px while cards are ~280–360px), DO NOT size the chart to the container's `widthPx`. Find a card-shaped neighbor (something with `widthPx` between 200 and 480 in the fingerprint — the existing dashboard cards) and size to match THAT. The new chart should slot in *alongside* the existing cards, not occupy the entire row.",
+    "  - Wrapper width: derive from the reference width above. Use `style=\"width: 100%; max-width: <ref>px; box-sizing: border-box;\"` where `<ref>` is the chosen card width — the chart caps at one-card-wide even when the target container is wider.",
+    "  - SVG width: `width=\"100%\"` so it scales with the wrapper. Always include a `viewBox` so the geometry stays crisp at any rendered size.",
+    "  - SVG height: match the host's vertical rhythm. Read the median `heightPx` of card-shaped neighbors and choose the SVG height so the *whole injection* (title + SVG + axis labels + wrapper padding) lands within ~80–110% of that median. If neighbor heights aren't available, default proportional to width (about width/3 for bar charts, width/4 for sparklines).",
+    "  - Bar widths come from the viewBox width / number of bars, NOT from absolute pixels. Compute `barWidth = (viewBoxWidth - padding) / bars.length - gap` so 4 bars and 12 bars both fit without overflow.",
+    "  - **Never inject a chart whose final rendered height exceeds the median card height by more than ~10%.** The chart should feel like a sibling of the surrounding cards, not a takeover.",
+    "- **Title row** above the SVG: same typography weight as neighboring card titles (`fontWeight: 600`, `fontSize: 14px` or larger). Inherit color, no underline. One line only.",
     "- **Data labels**: every bar/point shows its value (e.g. `$43k`) directly above or beside it. The user must be able to read numbers without hovering. Use `fontSize: 11px`, `font: inherit`.",
     "- **X-axis labels**: under each bar/point, `fontSize: 11px`, `opacity: 0.6`. Rotate to `-30deg` if labels are long.",
     "- **Bars/points**: `fill=\"currentColor\"` so they pick up the host theme. Use `fillOpacity` for variation between series, never different hex colors unless the user asked. Bars should be visually distinct heights — clamp the y-domain to `[0, max]` not `[min, max]` so size differences read correctly.",
     "- **Gridlines (optional but improves polish)**: 3-4 horizontal lines at major y-ticks, `stroke=\"currentColor\"`, `strokeOpacity: 0.08`, `strokeDasharray: \"2 4\"`.",
-    "- **Wrapper**: outer div with `padding: 16-20px`, `border: 1px solid currentColor` with low opacity, `borderRadius: 8px`, transparent or near-transparent background. Match the visual density of neighboring cards.",
-    "- **Real numbers**: pull values from \"Current visible page text\" above. Don't make up sample data when actual data is on screen.",
+    "- **Wrapper styling**: `padding: 14-18px`, `border: 1px solid currentColor` with `opacity` on the wrapper around `0.12`, `borderRadius: 8px`, transparent or near-transparent background. Match the visual density of neighboring cards (read it from the visual fingerprint).",
+    "- **Real numbers**: pull values from \"Structured data found on the page\" or \"Current visible page text\" above. Don't make up sample data when actual data is on screen.",
     "",
     "**Title accuracy.** Don't invent words. \"Revenue Distribution\" for a monthly bar chart is wrong — it implies a frequency histogram. Use the same noun the user used or that the source card uses (\"Revenue\", \"Monthly Revenue\"). When the user says \"histogram of revenue\" they almost always mean \"a bar chart of revenue\" — title it \"Revenue\" or \"Monthly Revenue\", not \"Revenue Distribution\".",
     "",
@@ -379,6 +411,7 @@ export function buildSystemPrompt(store: AgentStore): string {
       ? [
           "## Active HTML injections",
           "Each entry is a previously-injected fragment. To remove one, call `removeInjection` with its `targetId` and `injectionId`.",
+          "**Replace, don't stack.** If the user asks for something similar to an existing injection (a chart of the same data, a refined version of a previous mock), call `removeInjection` for the old `injectionId` BEFORE you `injectHTML` the new one. Stacking creates visual chaos. Treat re-requests as edits.",
           "```json",
           JSON.stringify(
             Object.fromEntries(
@@ -412,8 +445,8 @@ export function buildSystemPrompt(store: AgentStore): string {
     "",
     "**Example 1 — \"chart the revenue\"**",
     "Page tree shows `[container] revenue-card` containing a `<table>` of monthly figures. The Structured-data section above already extracted `[{Month: \"Jan\", Revenue: \"$32k\"}, …]`.",
-    "Right move: one `injectHTML` call, `targetId: \"revenue-card\"`, `position: \"inside-end\"`. The HTML is inline SVG bars. Heights computed from the actual extracted values (NOT made-up). Bar fill is `currentColor`, fillOpacity stepping per bar. Title row above the SVG reads \"Monthly Revenue\" at the same font weight as the card's existing heading (read from the visual fingerprint — `fontSize: 14px, fontWeight: 600`). Value labels above each bar in 11px. X-axis month labels under each bar. Wrapper `padding: 16px` to match the card's existing padding (also from the fingerprint). One sentence response: \"Charted the monthly revenue inline.\"",
-    "Failure mode to avoid: a `FaradayCard` with the prose \"Monthly revenue chart\" and no actual chart.",
+    "Right move: one `injectHTML` call, `targetId: \"revenue-card\"`, `position: \"inside-end\"`. Look up `revenue-card` in the visual fingerprint — say its `widthPx` is 360 and the `heightPx` of its sibling cards is also around 160. Then: wrapper `style=\"width:100%; box-sizing:border-box;\"`, SVG `width=\"100%\" viewBox=\"0 0 360 140\" height=\"140\"` (sized so title + axis labels stack alongside the SVG to land near 160 total). Bar widths derived from `viewBox.width / bars.length`, NOT absolute pixels. Heights computed from the actual extracted values (NOT made-up). Bar fill is `currentColor`, fillOpacity stepping per bar. Title row above the SVG reads \"Monthly Revenue\" at the same font weight as the card's existing heading (also from the fingerprint — `fontSize: 14px, fontWeight: 600`). Value labels above each bar in 11px. X-axis month labels under each bar. Wrapper `padding` matches the card's existing padding from the fingerprint. One sentence response: \"Charted the monthly revenue inline.\"",
+    "Failure modes to avoid: (a) a `FaradayCard` with the prose \"Monthly revenue chart\" and no actual chart; (b) an unbounded SVG that grows to 800px tall and dominates the viewport — derive size from the target's actual `widthPx`/`heightPx` instead of guessing.",
     "",
     "**Example 2 — \"make this feel like Linear\"**",
     "Page is light-mode, comfortable density. User said \"feel like Linear\" — that's the tonal cue. Linear's character: dark mode, indigo/violet accent, tight density, inter-style typography (already inherited).",

@@ -1,5 +1,6 @@
 export { UIAgentProvider } from "./provider/UIAgentProvider";
 export { InlineEditOverlay } from "./widget/InlineEditOverlay";
+export { UIAgentLauncher } from "./widget/UIAgentLauncher";
 export { Modifiable } from "./modifiable/Modifiable";
 export { useModifiable } from "./modifiable/useModifiable";
 export { FaradayInjectionSlot } from "./modifiable/FaradayInjectionSlot";

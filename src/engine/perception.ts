@@ -164,7 +164,12 @@ const NEIGHBORHOOD_PROPS = [
   "border",
 ] as const;
 
-export type ComputedSlice = Partial<Record<(typeof NEIGHBORHOOD_PROPS)[number], string>>;
+export type ComputedSlice = Partial<Record<(typeof NEIGHBORHOOD_PROPS)[number], string>> & {
+  /** Rendered width in pixels (rounded). */
+  widthPx?: number;
+  /** Rendered height in pixels (rounded). */
+  heightPx?: number;
+};
 
 export interface NeighborhoodEntry {
   id: string;
@@ -180,7 +185,7 @@ const MAX_NEIGHBORHOODS = 24;
 function sliceComputed(el: Element | null): ComputedSlice | undefined {
   if (!el || typeof window === "undefined") return undefined;
   const cs = window.getComputedStyle(el);
-  const out: Record<string, string> = {};
+  const out: Record<string, string | number> = {};
   for (const k of NEIGHBORHOOD_PROPS) {
     const v = cs.getPropertyValue(
       k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()),
@@ -191,6 +196,10 @@ function sliceComputed(el: Element | null): ComputedSlice | undefined {
   if (out.padding === "0px") delete out.padding;
   if (out.borderRadius === "0px") delete out.borderRadius;
   if (out.border === "0px none rgb(0, 0, 0)") delete out.border;
+  // Dimensions: include only when the element has nonzero size.
+  const rect = (el as HTMLElement).getBoundingClientRect?.();
+  if (rect && rect.width > 0) out.widthPx = Math.round(rect.width);
+  if (rect && rect.height > 0) out.heightPx = Math.round(rect.height);
   return out as ComputedSlice;
 }
 
@@ -219,6 +228,173 @@ export function extractNeighborhoodStyles(
     out.push(entry);
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reference-card sizing                                               */
+/* ------------------------------------------------------------------ */
+
+export interface ReferenceCard {
+  /** Median rendered width of card-shaped registered modifiables (px). */
+  widthPx: number;
+  /** Median rendered height (px). */
+  heightPx: number;
+  /** Number of card-shaped elements observed. */
+  count: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Auto-instrumentation — discover card-shaped elements                */
+/* ------------------------------------------------------------------ */
+
+const AUTO_ID_PREFIX = "fdy-auto-";
+
+function slugifyForId(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 28);
+}
+
+/**
+ * Walk the DOM under each registered Modifiable, find card-shaped elements
+ * that don't already have a stable `id`, assign them a content-derived id
+ * (`fdy-auto-<slug>`), and register them in the store as anchorable
+ * Modifiables. Idempotent — re-running picks up new cards without
+ * duplicating existing ones.
+ *
+ * Why this exists: many host apps wrap their entire app in a single root
+ * Modifiable and never instrument individual cards. Without this, the agent
+ * has only the root as an anchor target — every injection ends up at the
+ * page boundary instead of next to the relevant card.
+ */
+export function autoInstrumentCards(store: AgentStore): void {
+  if (typeof document === "undefined") return;
+  const state = store.getState();
+  const ids = Object.keys(state.registry).filter(
+    (id) => !id.startsWith("__"),
+  );
+  if (ids.length === 0) return;
+
+  const seen = new Set<Element>();
+  let scanned = 0;
+  let counter = 1;
+
+  for (const rootId of ids) {
+    const root = document.getElementById(rootId);
+    if (!root) continue;
+    const candidates = root.querySelectorAll("div, section, article");
+    for (const el of Array.from(candidates)) {
+      if (scanned >= MAX_DOM_SCAN) break;
+      if (seen.has(el)) continue;
+      seen.add(el);
+      scanned++;
+      if (!isCardShaped(el)) continue;
+      // Skip elements that already have an id — host's own id wins, and our
+      // own ids (prefixed) get short-circuited here too.
+      if (el.id) continue;
+
+      const text = (el as HTMLElement).innerText?.replace(/\s+/g, " ").trim() ?? "";
+      const slug = slugifyForId(text) || `card-${counter++}`;
+      let newId = AUTO_ID_PREFIX + slug;
+      // Avoid id collisions by suffixing a counter when needed.
+      let suffix = 2;
+      while (document.getElementById(newId)) {
+        newId = `${AUTO_ID_PREFIX}${slug}-${suffix++}`;
+        if (suffix > 50) break;
+      }
+      if (document.getElementById(newId)) continue;
+
+      el.id = newId;
+      const trimmed = text.slice(0, 80);
+      state.register({
+        id: newId,
+        tag: el.tagName.toLowerCase(),
+        type: "element",
+        ...(trimmed ? { currentText: trimmed } : {}),
+      });
+    }
+  }
+}
+
+function isCardShaped(el: Element): boolean {
+  const rect = (el as HTMLElement).getBoundingClientRect();
+  if (rect.width < 200 || rect.width > 720) return false;
+  if (rect.height < 60 || rect.height > 600) return false;
+  const cs = window.getComputedStyle(el);
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  const radius = parseFloat(cs.borderTopLeftRadius) || 0;
+  if (padTop < 6) return false;
+  if (radius < 4) return false;
+  return true;
+}
+
+const MAX_DOM_SCAN = 400;
+
+/**
+ * Find the typical "card" on the page so the agent has a single number to
+ * match when injecting a chart/widget. Strategy:
+ *   1. Look at registered Modifiables. If two or more are card-shaped, use them.
+ *   2. Otherwise (host only registered a single root Modifiable, common for
+ *      "wrap the whole app" demos), scan the actual DOM tree under each
+ *      registered root and harvest card-shaped elements directly.
+ *
+ * Card-shaped = width 200–720px, height 60–600px, padding ≥ 6px, borderRadius ≥ 4px.
+ *
+ * Returns null when fewer than two card-shaped elements are observed in either
+ * pass — better to leave the agent without a hint than to mislead it.
+ */
+export function findReferenceCard(store: AgentStore): ReferenceCard | null {
+  if (typeof document === "undefined" || typeof window === "undefined") return null;
+
+  const widths: number[] = [];
+  const heights: number[] = [];
+
+  // Pass 1: registered Modifiables.
+  const ids = Object.keys(store.getState().registry).filter(
+    (id) => !id.startsWith("__"),
+  );
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (!isCardShaped(el)) continue;
+    const rect = el.getBoundingClientRect();
+    widths.push(Math.round(rect.width));
+    heights.push(Math.round(rect.height));
+  }
+
+  // Pass 2: scan the live DOM under each registered root. Hosts often register
+  // only a top-level container; the *actual* cards live deeper.
+  if (widths.length < 2) {
+    const seen = new Set<Element>();
+    let scanned = 0;
+    for (const id of ids) {
+      const root = document.getElementById(id);
+      if (!root) continue;
+      const candidates = root.querySelectorAll("div, section, article, aside");
+      for (const el of Array.from(candidates)) {
+        if (scanned >= MAX_DOM_SCAN) break;
+        if (seen.has(el)) continue;
+        seen.add(el);
+        scanned++;
+        if (!isCardShaped(el)) continue;
+        const rect = (el as HTMLElement).getBoundingClientRect();
+        widths.push(Math.round(rect.width));
+        heights.push(Math.round(rect.height));
+      }
+    }
+  }
+
+  if (widths.length < 2) return null;
+  widths.sort((a, b) => a - b);
+  heights.sort((a, b) => a - b);
+  const median = (arr: number[]) => arr[Math.floor(arr.length / 2)];
+  return {
+    widthPx: median(widths),
+    heightPx: median(heights),
+    count: widths.length,
+  };
 }
 
 /* ------------------------------------------------------------------ */
