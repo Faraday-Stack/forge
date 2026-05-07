@@ -4,14 +4,13 @@
   "description": "Let users dynamically modify your React app's UI via a conversational agent",
   "license": "MIT",
   "author": "Faraday",
-  "homepage": "https://github.com/oscjac/faraday/tree/main/package#readme",
+  "homepage": "https://github.com/Faraday-Stack/forge#readme",
   "bugs": {
-    "url": "https://github.com/oscjac/faraday/issues"
+    "url": "https://github.com/Faraday-Stack/forge/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oscjac/faraday.git",
-    "directory": "package"
+    "url": "git+https://github.com/Faraday-Stack/forge.git"
   },
   "keywords": [
     "react",
