@@ -1,10 +1,10 @@
 {
   "name": "@faraday-stack/forge",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Let users dynamically modify your React app's UI via a conversational agent",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "author": "Faraday",
-  "homepage": "https://github.com/Faraday-Stack/forge#readme",
+  "homepage": "https://www.faradaystack.com",
   "bugs": {
     "url": "https://github.com/Faraday-Stack/forge/issues"
   },
