@@ -44,6 +44,77 @@ export function sanitizeCssVarName(raw: string): string | null {
   return `--${trimmed}`;
 }
 
+const URL_BEARING_ATTRS = new Set([
+  "href",
+  "src",
+  "action",
+  "formaction",
+  "xlink:href",
+  "poster",
+  "background",
+  "ping",
+]);
+
+const DANGEROUS_URL_PREFIXES = [
+  /^\s*javascript:/i,
+  /^\s*data:text\/html/i,
+  /^\s*vbscript:/i,
+];
+
+const ALWAYS_BLOCKED_ATTRS = new Set([
+  "id",      // would re-key the registry
+  "style",   // applyStyle's job
+  "class",   // high-leverage for theme attacks; off by default
+  "srcdoc",  // arbitrary HTML in iframes
+  "sandbox", // dropping it weakens iframe isolation
+]);
+
+/**
+ * Validate an attribute name against the allowlist. Names with a `*` suffix in
+ * the allowlist match any attr with that prefix (e.g. `"aria-*"` matches `"aria-label"`).
+ * `on*` (event handlers) and the always-blocked set return false unconditionally.
+ */
+export function isAttributeAllowed(name: string, allowlist: string[]): boolean {
+  const lower = name.toLowerCase();
+  if (ALWAYS_BLOCKED_ATTRS.has(lower)) return false;
+  if (lower.startsWith("on")) return false;
+  for (const pattern of allowlist) {
+    const p = pattern.toLowerCase();
+    if (p.endsWith("*")) {
+      if (lower.startsWith(p.slice(0, -1))) return true;
+    } else if (p === lower) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Sanitize an attribute map for `setAttributes`. Drops disallowed keys silently;
+ * empty-string values are normalized to `null` (clear). URL-bearing attrs reject
+ * `javascript:`, `vbscript:`, and `data:text/html` payloads.
+ */
+export function sanitizeAttributes(
+  attrs: Record<string, string>,
+  allowlist: string[],
+): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const [k, v] of Object.entries(attrs)) {
+    const lower = k.toLowerCase();
+    if (!isAttributeAllowed(lower, allowlist)) continue;
+    if (v === "" || v == null) {
+      out[lower] = null;
+      continue;
+    }
+    if (typeof v !== "string") continue;
+    if (URL_BEARING_ATTRS.has(lower)) {
+      if (DANGEROUS_URL_PREFIXES.some((re) => re.test(v))) continue;
+    }
+    out[lower] = v;
+  }
+  return out;
+}
+
 /**
  * Strip dangerous patterns from agent-provided HTML markup before it's
  * rendered via dangerouslySetInnerHTML. This is a small, deliberately strict

@@ -182,3 +182,318 @@ describe("store.apply — onAction callback", () => {
     expect((calls[0] as { type: string }).type).toBe("setText");
   });
 });
+
+describe("store.apply — applyStyle scope=descendants", () => {
+  it("writes to descendantStyle, not style", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "red" },
+      scope: "descendants",
+    });
+    expect(store.getState().overrides["sidebar"]?.descendantStyle?.color).toBe("red");
+    expect(store.getState().overrides["sidebar"]?.style).toBeUndefined();
+  });
+
+  it("element scope leaves descendantStyle untouched", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "red" },
+      scope: "descendants",
+    });
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "blue" },
+    });
+    expect(store.getState().overrides["sidebar"]?.descendantStyle?.color).toBe("red");
+    expect(store.getState().overrides["sidebar"]?.style?.color).toBe("blue");
+  });
+
+  it("undo restores descendantStyle to prior state", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "red" },
+      scope: "descendants",
+    });
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "blue" },
+      scope: "descendants",
+    });
+    store.getState().undo(1);
+    expect(store.getState().overrides["sidebar"]?.descendantStyle?.color).toBe("red");
+  });
+
+  it("snapshot exposes currentDescendantStyle", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "applyStyle",
+      targetId: "sidebar",
+      properties: { color: "red" },
+      scope: "descendants",
+    });
+    const entry = store.getState().snapshot().modifiables.find((m) => m.id === "sidebar");
+    expect(entry?.currentDescendantStyle?.color).toBe("red");
+  });
+});
+
+describe("store.apply — setAttributes", () => {
+  it("writes sanitized attributes", () => {
+    const store = makeStore();
+    const err = store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "/signup", target: "_blank", rel: "noopener" },
+    });
+    expect(err).toBeNull();
+    const attrs = store.getState().overrides["btn"]?.attributes ?? {};
+    expect(attrs.href).toBe("/signup");
+    expect(attrs.target).toBe("_blank");
+    expect(attrs.rel).toBe("noopener");
+  });
+
+  it("strips on* event handlers", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { onclick: "alert(1)", href: "/ok" },
+    });
+    const attrs = store.getState().overrides["btn"]?.attributes ?? {};
+    expect(attrs.onclick).toBeUndefined();
+    expect(attrs.href).toBe("/ok");
+  });
+
+  it("blocks javascript: URLs in href", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "javascript:alert(1)", title: "ok" },
+    });
+    const attrs = store.getState().overrides["btn"]?.attributes ?? {};
+    expect(attrs.href).toBeUndefined();
+    expect(attrs.title).toBe("ok");
+  });
+
+  it("drops attributes outside the allowlist", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { class: "danger", id: "new-id" },
+    });
+    const attrs = store.getState().overrides["btn"]?.attributes;
+    expect(attrs).toBeUndefined();
+  });
+
+  it("returns error when nothing survives sanitization", () => {
+    const store = makeStore();
+    const err = store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { onclick: "x", style: "color:red" },
+    });
+    expect(err).toMatch(/no allowed attributes/);
+  });
+
+  it("empty string clears the attribute on next set", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "/a" },
+    });
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "" },
+    });
+    const attrs = store.getState().overrides["btn"]?.attributes ?? {};
+    expect(attrs.href).toBeUndefined();
+  });
+
+  it("undo restores prior attribute values", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "/a" },
+    });
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "/b" },
+    });
+    store.getState().undo(1);
+    expect(store.getState().overrides["btn"]?.attributes?.href).toBe("/a");
+  });
+
+  it("undo of first setAttributes clears the attribute", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { href: "/a" },
+    });
+    store.getState().undo(1);
+    expect(store.getState().overrides["btn"]?.attributes?.href).toBeUndefined();
+  });
+
+  it("aria-* and data-* are accepted by the default allowlist", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "setAttributes",
+      targetId: "btn",
+      attributes: { "aria-label": "Save", "data-test": "btn-save" },
+    });
+    const attrs = store.getState().overrides["btn"]?.attributes ?? {};
+    expect(attrs["aria-label"]).toBe("Save");
+    expect(attrs["data-test"]).toBe("btn-save");
+  });
+});
+
+describe("store.apply — removeComponent / removeInjection", () => {
+  function setup() {
+    const store = makeStore();
+    store.getState().apply({
+      type: "insertComponent",
+      containerId: "sidebar",
+      componentName: "FaradayBanner",
+      props: { text: "hi" },
+      position: 0,
+      instanceId: "comp-1",
+    });
+    store.getState().apply({
+      type: "injectHTML",
+      targetId: "btn",
+      html: "<span>x</span>",
+      position: "after",
+      injectionId: "inj-1",
+    });
+    return store;
+  }
+
+  it("removeComponent deletes from insertedComponents", () => {
+    const store = setup();
+    const err = store.getState().apply({ type: "removeComponent", instanceId: "comp-1" });
+    expect(err).toBeNull();
+    expect(store.getState().insertedComponents["sidebar"]).toEqual([]);
+  });
+
+  it("removeComponent unknown instanceId returns error", () => {
+    const store = makeStore();
+    const err = store.getState().apply({ type: "removeComponent", instanceId: "nope" });
+    expect(err).toMatch(/not found/);
+  });
+
+  it("removeInjection deletes from injections", () => {
+    const store = setup();
+    const err = store.getState().apply({
+      type: "removeInjection",
+      targetId: "btn",
+      injectionId: "inj-1",
+    });
+    expect(err).toBeNull();
+    expect(store.getState().injections["btn"]).toEqual([]);
+  });
+
+  it("removeInjection unknown injectionId returns error", () => {
+    const store = setup();
+    const err = store.getState().apply({
+      type: "removeInjection",
+      targetId: "btn",
+      injectionId: "nope",
+    });
+    expect(err).toMatch(/not on target/);
+  });
+
+  it("undo of removeComponent re-inserts at original position", () => {
+    const store = setup();
+    store.getState().apply({ type: "removeComponent", instanceId: "comp-1" });
+    store.getState().undo(1);
+    const list = store.getState().insertedComponents["sidebar"] ?? [];
+    expect(list).toHaveLength(1);
+    expect(list[0].instanceId).toBe("comp-1");
+    expect(list[0].componentName).toBe("FaradayBanner");
+  });
+
+  it("undo of removeInjection re-creates the injection", () => {
+    const store = setup();
+    store.getState().apply({
+      type: "removeInjection",
+      targetId: "btn",
+      injectionId: "inj-1",
+    });
+    store.getState().undo(1);
+    const list = store.getState().injections["btn"] ?? [];
+    expect(list).toHaveLength(1);
+    expect(list[0].injectionId).toBe("inj-1");
+    expect(list[0].html).toBe("<span>x</span>");
+  });
+});
+
+describe("vibePreferences — extraction across turns", () => {
+  it("starts empty", () => {
+    const store = makeStore();
+    expect(store.getState().vibePreferences.tags).toEqual({});
+  });
+
+  it("tracks tone tags from user messages", () => {
+    const store = makeStore();
+    store.getState().observeUserMessage("make this feel warmer and more bold");
+    const tags = store.getState().vibePreferences.tags;
+    expect(tags.warm).toBe(1);
+    expect(tags.bold).toBe(1);
+  });
+
+  it("ignores messages with no tonal vocabulary", () => {
+    const store = makeStore();
+    store.getState().observeUserMessage("add a chart of the revenue data");
+    expect(store.getState().vibePreferences.tags).toEqual({});
+    expect(store.getState().vibePreferences.lastTonalRequest).toBeNull();
+  });
+
+  it("accumulates frequencies across turns", () => {
+    const store = makeStore();
+    store.getState().observeUserMessage("make this warmer");
+    store.getState().observeUserMessage("warmer still, like a sunset");
+    expect(store.getState().vibePreferences.tags.warm).toBe(2);
+  });
+
+  it("records last tonal request verbatim", () => {
+    const store = makeStore();
+    store.getState().observeUserMessage("add a chart");
+    store.getState().observeUserMessage("now make it feel cozy and minimalist");
+    expect(store.getState().vibePreferences.lastTonalRequest).toMatch(/cozy/);
+  });
+
+  it("recognises product-style references (linear, notion)", () => {
+    const store = makeStore();
+    store.getState().observeUserMessage("make this feel like linear");
+    expect(store.getState().vibePreferences.tags.linear).toBe(1);
+  });
+});
+
+describe("snapshot — exposes injections", () => {
+  it("includes injections keyed by targetId", () => {
+    const store = makeStore();
+    store.getState().apply({
+      type: "injectHTML",
+      targetId: "btn",
+      html: "<i>i</i>",
+      position: "after",
+      injectionId: "inj-snap",
+    });
+    const snap = store.getState().snapshot();
+    expect(snap.injections["btn"]).toHaveLength(1);
+    expect(snap.injections["btn"][0].injectionId).toBe("inj-snap");
+  });
+});

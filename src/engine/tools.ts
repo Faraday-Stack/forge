@@ -153,6 +153,49 @@ export const TOOL_SCHEMA = [
     },
   },
   {
+    name: "removeComponent",
+    description:
+      "Remove a previously inserted component by its instanceId. Use when the user asks to delete or remove something the agent inserted earlier. instanceIds appear in the page tree as `[inserted ...]`.",
+    input_schema: {
+      type: "object",
+      properties: {
+        instanceId: { type: "string", description: "instanceId of the inserted component to remove." },
+      },
+      required: ["instanceId"],
+    },
+  },
+  {
+    name: "removeInjection",
+    description:
+      "Remove a previously injected HTML/SVG fragment by its injectionId. Use when the user asks to delete an injected chart, badge, table, or other markup. The active injections appear in the system prompt under 'Active HTML injections'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        targetId: { type: "string", description: "Anchor id the injection is attached to." },
+        injectionId: { type: "string" },
+      },
+      required: ["targetId", "injectionId"],
+    },
+  },
+  {
+    name: "setAttributes",
+    description:
+      "Set or clear HTML attributes on a registered modifiable element. Use for href / src / placeholder / type / target / aria-* / data-* — anything that lives on the element as a key/value but isn't style or text. Pass an empty string to CLEAR an attribute. Event handlers (on*), id, style, class, srcdoc, and sandbox are always rejected.",
+    input_schema: {
+      type: "object",
+      properties: {
+        targetId: { type: "string", description: "Id of the modifiable element to mutate." },
+        attributes: {
+          type: "object",
+          description:
+            "Map of attribute names to values. Names are case-insensitive. Pass '' to clear. Example: { href: '/signup', target: '_blank', rel: 'noopener', placeholder: 'name@example.com' }.",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["targetId", "attributes"],
+    },
+  },
+  {
     name: "undo",
     description: "Undo the last N actions.",
     input_schema: {

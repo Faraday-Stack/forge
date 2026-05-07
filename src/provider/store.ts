@@ -1,6 +1,11 @@
 import { createStore } from "zustand/vanilla";
 import type { CSSProperties } from "react";
-import { sanitizeStyleValue, sanitizeCssVarName } from "../engine/sanitize";
+import { sanitizeStyleValue, sanitizeCssVarName, sanitizeAttributes } from "../engine/sanitize";
+import {
+  EMPTY_VIBE_PREFERENCES,
+  mergeVibe,
+  type VibePreferences,
+} from "../engine/vibe";
 import type {
   Override,
   InsertedComponent,
@@ -52,6 +57,15 @@ const DEFAULT_PERMISSIONS: PermissionsConfig = {
     "flexGrow",
     "flexShrink",
   ],
+  allowedAttributes: [
+    "href", "src", "alt", "title", "placeholder", "type", "value",
+    "name", "for", "checked", "disabled", "readonly", "required",
+    "min", "max", "step", "pattern", "maxlength", "minlength",
+    "rows", "cols", "wrap",
+    "target", "rel", "download", "loading",
+    "role", "tabindex",
+    "aria-*", "data-*",
+  ],
   maxUndoDepth: 50,
   persist: "none",
 };
@@ -74,6 +88,8 @@ export interface AgentState {
   themeVars: Record<string, string>;
   /** Per-container layout-mode override. */
   layoutModes: Record<string, LayoutOverride>;
+  /** Cumulative tone/vibe signals extracted from this session's user messages. */
+  vibePreferences: VibePreferences;
 
   register: (entry: ModifiableEntry) => void;
   unregister: (id: string) => void;
@@ -81,6 +97,8 @@ export interface AgentState {
   undo: (steps?: number) => void;
   markPulsing: (ids: string[]) => void;
   snapshot: () => PageSnapshot;
+  /** Update vibe preferences from a user message; tags are accumulated, not replaced. */
+  observeUserMessage: (message: string) => void;
   appendMessage: (message: ChatMessage) => void;
   appendToLastMessage: (delta: string) => void;
   setLastMessageStreaming: (streaming: boolean) => void;
@@ -126,6 +144,7 @@ export function createAgentStore(
     injections: {},
     themeVars: {},
     layoutModes: {},
+    vibePreferences: EMPTY_VIBE_PREFERENCES,
 
     register(entry) {
       set((state) => ({ registry: { ...state.registry, [entry.id]: entry } }));
@@ -192,7 +211,9 @@ export function createAgentStore(
           const clean = sanitizeStyleValue(String(v));
           if (clean !== null) (sanitized as Record<string, unknown>)[k] = clean;
         }
-        const prev = nextOverrides[action.targetId]?.style ?? {};
+        const scope = action.scope ?? "element";
+        const sliceKey = scope === "descendants" ? "descendantStyle" : "style";
+        const prev = (nextOverrides[action.targetId]?.[sliceKey] ?? {}) as CSSProperties;
         const prevSlice: CSSProperties = {};
         for (const k of Object.keys(sanitized)) {
           (prevSlice as Record<string, unknown>)[k] = (
@@ -203,10 +224,11 @@ export function createAgentStore(
           type: "applyStyle",
           targetId: action.targetId,
           properties: prevSlice,
+          scope,
         };
         nextOverrides[action.targetId] = {
           ...nextOverrides[action.targetId],
-          style: { ...prev, ...sanitized },
+          [sliceKey]: { ...prev, ...sanitized },
         };
       } else if (action.type === "setText") {
         const prev =
@@ -257,7 +279,7 @@ export function createAgentStore(
         }
       } else if (action.type === "insertComponent") {
         inverse = {
-          type: "removeInserted",
+          type: "restoreInserted",
           containerId: action.containerId,
           instanceId: action.instanceId,
         };
@@ -288,7 +310,7 @@ export function createAgentStore(
           ...nextInjections,
           [action.targetId]: [...(nextInjections[action.targetId] ?? []), next],
         };
-        inverse = { type: "removeInjection", injectionId: action.injectionId };
+        inverse = { type: "restoreInjection", injectionId: action.injectionId };
       } else if (action.type === "applyTheme") {
         // Sanitize each (name, value) pair. Empty value clears the var.
         const cleanedNew: Record<string, string> = {};
@@ -331,6 +353,76 @@ export function createAgentStore(
           targetId: action.targetId,
           previous,
         };
+      } else if (action.type === "removeComponent") {
+        let foundContainer: string | null = null;
+        let foundComponent: InsertedComponent | null = null;
+        for (const [cid, list] of Object.entries(nextInserted)) {
+          const c = list.find((x) => x.instanceId === action.instanceId);
+          if (c) {
+            foundContainer = cid;
+            foundComponent = c;
+            break;
+          }
+        }
+        if (!foundContainer || !foundComponent) {
+          return `removeComponent: instanceId '${action.instanceId}' not found`;
+        }
+        nextInserted[foundContainer] = nextInserted[foundContainer].filter(
+          (c) => c.instanceId !== action.instanceId,
+        );
+        if (nextContainerOrder[foundContainer]) {
+          nextContainerOrder = {
+            ...nextContainerOrder,
+            [foundContainer]: nextContainerOrder[foundContainer].filter(
+              (id) => id !== action.instanceId,
+            ),
+          };
+        }
+        inverse = {
+          type: "insertComponent",
+          containerId: foundContainer,
+          component: foundComponent,
+        };
+      } else if (action.type === "removeInjection") {
+        const list = nextInjections[action.targetId] ?? [];
+        const found = list.find((j) => j.injectionId === action.injectionId);
+        if (!found) {
+          return `removeInjection: injectionId '${action.injectionId}' not on target '${action.targetId}'`;
+        }
+        nextInjections = {
+          ...nextInjections,
+          [action.targetId]: list.filter(
+            (j) => j.injectionId !== action.injectionId,
+          ),
+        };
+        inverse = { type: "injectHTML", injection: found };
+      } else if (action.type === "setAttributes") {
+        const cleaned = sanitizeAttributes(
+          action.attributes,
+          permissions.allowedAttributes,
+        );
+        if (Object.keys(cleaned).length === 0) {
+          return "setAttributes: no allowed attributes after sanitization";
+        }
+        const prev = nextOverrides[action.targetId]?.attributes ?? {};
+        const inverseAttrs: Record<string, string | null> = {};
+        for (const k of Object.keys(cleaned)) {
+          inverseAttrs[k] = k in prev ? prev[k] : null;
+        }
+        const merged: Record<string, string> = { ...prev };
+        for (const [k, v] of Object.entries(cleaned)) {
+          if (v == null) delete merged[k];
+          else merged[k] = v;
+        }
+        nextOverrides[action.targetId] = {
+          ...nextOverrides[action.targetId],
+          attributes: merged,
+        };
+        inverse = {
+          type: "setAttributes",
+          targetId: action.targetId,
+          attributes: inverseAttrs,
+        };
       }
 
       // Prepend the inverse so undo replays in LIFO order; trim to maxUndoDepth.
@@ -363,6 +455,12 @@ export function createAgentStore(
         affected.push(action.targetId);
       } else if (action.type === "setLayout") {
         affected.push(action.targetId);
+      } else if (action.type === "setAttributes") {
+        affected.push(action.targetId);
+      } else if (action.type === "removeComponent") {
+        affected.push(action.instanceId);
+      } else if (action.type === "removeInjection") {
+        affected.push(action.targetId);
       }
       if (affected.length) get().markPulsing(affected);
 
@@ -389,10 +487,11 @@ export function createAgentStore(
           if ("targetId" in inv) touched.push(inv.targetId);
           else if ("containerId" in inv) touched.push(inv.containerId);
           if (inv.type === "applyStyle") {
+            const sliceKey = inv.scope === "descendants" ? "descendantStyle" : "style";
             nextOverrides[inv.targetId] = {
               ...nextOverrides[inv.targetId],
-              style: {
-                ...nextOverrides[inv.targetId]?.style,
+              [sliceKey]: {
+                ...(nextOverrides[inv.targetId]?.[sliceKey] ?? {}),
                 ...inv.properties,
               },
             };
@@ -416,11 +515,19 @@ export function createAgentStore(
             nextInserted[inv.containerId] = current
               .slice()
               .sort((a, b) => indexOf(a.instanceId) - indexOf(b.instanceId));
-          } else if (inv.type === "removeInserted") {
+          } else if (inv.type === "restoreInserted") {
             nextInserted[inv.containerId] = (
               nextInserted[inv.containerId] ?? []
             ).filter((c) => c.instanceId !== inv.instanceId);
-          } else if (inv.type === "removeInjection") {
+            if (nextContainerOrder[inv.containerId]) {
+              nextContainerOrder = {
+                ...nextContainerOrder,
+                [inv.containerId]: nextContainerOrder[inv.containerId].filter(
+                  (id) => id !== inv.instanceId,
+                ),
+              };
+            }
+          } else if (inv.type === "restoreInjection") {
             for (const tId of Object.keys(nextInjections)) {
               const filtered = nextInjections[tId].filter(
                 (j) => j.injectionId !== inv.injectionId,
@@ -430,6 +537,19 @@ export function createAgentStore(
                 nextInjections[tId] = filtered;
               }
             }
+          } else if (inv.type === "insertComponent") {
+            const existing = nextInserted[inv.containerId] ?? [];
+            const at = Math.min(inv.component.position, existing.length);
+            nextInserted[inv.containerId] = [
+              ...existing.slice(0, at),
+              inv.component,
+              ...existing.slice(at),
+            ];
+            touched.push(inv.containerId, inv.component.instanceId);
+          } else if (inv.type === "injectHTML") {
+            const tId = inv.injection.targetId;
+            nextInjections[tId] = [...(nextInjections[tId] ?? []), inv.injection];
+            touched.push(tId);
           } else if (inv.type === "applyTheme") {
             for (const [name, value] of Object.entries(inv.vars)) {
               if (value == null) delete nextThemeVars[name];
@@ -438,6 +558,16 @@ export function createAgentStore(
           } else if (inv.type === "setLayout") {
             if (inv.previous) nextLayoutModes[inv.targetId] = inv.previous;
             else delete nextLayoutModes[inv.targetId];
+          } else if (inv.type === "setAttributes") {
+            const cur = { ...(nextOverrides[inv.targetId]?.attributes ?? {}) };
+            for (const [k, v] of Object.entries(inv.attributes)) {
+              if (v == null) delete cur[k];
+              else cur[k] = v;
+            }
+            nextOverrides[inv.targetId] = {
+              ...nextOverrides[inv.targetId],
+              attributes: cur,
+            };
           }
         }
       }
@@ -482,19 +612,25 @@ export function createAgentStore(
         insertedComponents,
         components,
         containerOrder,
+        injections,
         themeVars,
         layoutModes,
       } = get();
       return {
         modifiables: Object.values(registry).map((entry) => {
           const style = overrides[entry.id]?.style;
+          const descendantStyle = overrides[entry.id]?.descendantStyle;
+          const attributes = overrides[entry.id]?.attributes;
           return {
             ...entry,
             ...(style !== undefined && { currentStyle: style }),
+            ...(descendantStyle !== undefined && { currentDescendantStyle: descendantStyle }),
+            ...(attributes !== undefined && { currentAttributes: attributes }),
           };
         }),
         insertedComponents,
         containerOrder,
+        injections,
         components: Object.entries(components).map(([name, entry]) => ({
           name,
           props: entry.propsSchema ?? {},
@@ -502,6 +638,10 @@ export function createAgentStore(
         themeVars,
         layoutModes,
       };
+    },
+
+    observeUserMessage(message) {
+      set((s) => ({ vibePreferences: mergeVibe(s.vibePreferences, message) }));
     },
 
     appendMessage(message) {

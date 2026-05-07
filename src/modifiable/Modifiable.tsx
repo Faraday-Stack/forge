@@ -83,7 +83,7 @@ export function Modifiable<T extends ElementType = "div">({
   ...rest
 }: ModifiableProps<T>) {
   const Tag = (as ?? "div") as ElementType;
-  const { text, style, visible } = useModifiable(id, {
+  const { text, style, visible, attributes } = useModifiable(id, {
     ...(defaultText !== undefined && { text: defaultText }),
     tag: typeof Tag === "string" ? Tag : "div",
     ...(type !== undefined && { type }),
@@ -218,8 +218,9 @@ export function Modifiable<T extends ElementType = "div">({
       <Tag
         ref={ref}
         id={id}
-        style={{ ...externalStyle, ...style, ...layoutStyle }}
         {...rest}
+        {...attributes}
+        style={{ ...externalStyle, ...style, ...layoutStyle }}
       >
         {injInsideStart.map(renderInjection)}
         {renderedChildren}

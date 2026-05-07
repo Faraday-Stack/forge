@@ -5,6 +5,10 @@ export interface Override {
   text?: string;
   style?: CSSProperties;
   visible?: boolean;
+  /** Attribute overrides (href, src, placeholder, aria-*, data-*, …). Merged into the rendered element's props. */
+  attributes?: Record<string, string>;
+  /** Style applied to every DOM descendant of this id (cascades through `useResolvedStyle`). */
+  descendantStyle?: CSSProperties;
 }
 
 /** A component instance inserted into a container by the agent. */
@@ -140,27 +144,60 @@ export type Action =
     }
   | { type: "applyTheme"; vars: Record<string, string> }
   | { type: "setLayout"; targetId: string; mode: LayoutMode; columns?: number }
+  | {
+      type: "setAttributes";
+      targetId: string;
+      /** Map of attribute names to values. Empty string clears the attribute. */
+      attributes: Record<string, string>;
+    }
+  | { type: "removeComponent"; instanceId: string }
+  | { type: "removeInjection"; targetId: string; injectionId: string }
   | { type: "undo"; steps?: number };
 
 /** Inverse actions stored in the undo history. Each forward action computes its inverse before committing. */
 export type InverseAction =
-  | { type: "applyStyle"; targetId: string; properties: CSSProperties }
+  | {
+      type: "applyStyle";
+      targetId: string;
+      properties: CSSProperties;
+      /** Defaults to "element" when reading legacy history written before scope was tracked. */
+      scope?: "element" | "descendants";
+    }
   | { type: "setText"; targetId: string; text: string }
   | { type: "setVisibility"; targetId: string; visible: boolean }
   | { type: "reorder"; containerId: string; order: string[] }
-  | { type: "removeInserted"; containerId: string; instanceId: string }
-  | { type: "removeInjection"; injectionId: string }
+  /** Inverse of `insertComponent` — removes the just-inserted instance. */
+  | { type: "restoreInserted"; containerId: string; instanceId: string }
+  /** Inverse of `injectHTML` — removes the just-injected fragment. */
+  | { type: "restoreInjection"; injectionId: string }
+  /** Inverse of `removeComponent` — re-inserts the removed component at its original position. */
+  | { type: "insertComponent"; containerId: string; component: InsertedComponent }
+  /** Inverse of `removeInjection` — re-creates the removed injection with its original payload. */
+  | { type: "injectHTML"; injection: HtmlInjection }
   | { type: "applyTheme"; vars: Record<string, string | null> }
-  | { type: "setLayout"; targetId: string; previous: LayoutOverride | null };
+  | { type: "setLayout"; targetId: string; previous: LayoutOverride | null }
+  | {
+      type: "setAttributes";
+      targetId: string;
+      /** Previous values for the touched keys (`null` = was unset, restored by deletion). */
+      attributes: Record<string, string | null>;
+    };
 
 /** Full page state sent to the LLM as context. Built by `buildSnapshot()` before each request. */
 export interface PageSnapshot {
   modifiables: Array<
-    ModifiableEntry & { currentText?: string; currentStyle?: CSSProperties }
+    ModifiableEntry & {
+      currentText?: string;
+      currentStyle?: CSSProperties;
+      currentDescendantStyle?: CSSProperties;
+      currentAttributes?: Record<string, string>;
+    }
   >;
   insertedComponents: Record<string, InsertedComponent[]>;
   /** Per-container child order. Ids may be native Modifiable ids or inserted instanceIds. */
   containerOrder: Record<string, string[]>;
+  /** Active HTML/SVG injections, keyed by anchor targetId. Exposed so the LLM can reference an injectionId for `removeInjection`. */
+  injections: Record<string, HtmlInjection[]>;
   /** Available components the agent may insert, with their prop schemas. */
   components: Array<{ name: string; props: Record<string, string> }>;
   /** Active CSS-variable overrides applied to <html>. Empty when the agent hasn't re-themed. */
@@ -173,11 +210,15 @@ export interface PageSnapshot {
  * Controls what the agent is allowed to do.
  *
  * - `allowedStyleProps` — CSS property names the agent may set via `applyStyle` (injection guard)
+ * - `allowedAttributes` — HTML attribute names the agent may set via `setAttributes`. Supports
+ *   `aria-*` and `data-*` prefix wildcards. `on*`, `style`, `id`, `class`, `srcdoc`, `sandbox`
+ *   are always blocked regardless of the allowlist.
  * - `maxUndoDepth` — maximum number of undo steps retained (default 50)
  * - `persist` — where overrides survive page reloads: `"none"` (default), `"session"` (sessionStorage), `"user"` (localStorage)
  */
 export interface PermissionsConfig {
   allowedStyleProps: string[];
+  allowedAttributes: string[];
   maxUndoDepth: number;
   persist: "none" | "session" | "user";
 }
@@ -240,6 +281,8 @@ export interface UIAgentProviderProps extends AgentConnectionConfig {
 /** Resolved override state with visibility defaulting to `true`. Returned by `useModifiable`. */
 export interface ModifiableOverride extends Override {
   visible: boolean;
+  /** Always present on the resolved value (empty object when no overrides). */
+  attributes: Record<string, string>;
 }
 
 /** A message in the chat conversation between the user and the agent. */

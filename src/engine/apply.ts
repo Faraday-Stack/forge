@@ -111,6 +111,26 @@ export function dispatchToolUse(
       };
       break;
     }
+    case "setAttributes":
+      action = {
+        type: "setAttributes",
+        targetId: tool.input.targetId as string,
+        attributes: (tool.input.attributes as Record<string, string>) ?? {},
+      };
+      break;
+    case "removeComponent":
+      action = {
+        type: "removeComponent",
+        instanceId: tool.input.instanceId as string,
+      };
+      break;
+    case "removeInjection":
+      action = {
+        type: "removeInjection",
+        targetId: tool.input.targetId as string,
+        injectionId: tool.input.injectionId as string,
+      };
+      break;
     case "undo":
       action = { type: "undo", steps: (tool.input.steps as number) ?? 1 }; // default 1 step
       break;

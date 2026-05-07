@@ -12,6 +12,7 @@ import type { FormSubmitHandler } from "./context";
 import type { UIAgentProviderProps } from "../types";
 import { DEFAULT_COMPONENTS } from "../components";
 import { loadOverrides } from "../persistence/client";
+import { loadClientSnapshot, saveClientSnapshot } from "../persistence/clientStorage";
 import { InlineEditOverlay } from "../widget/InlineEditOverlay";
 
 /**
@@ -86,26 +87,93 @@ export function UIAgentProvider({
   }, [store]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     let cancelled = false;
     const connection = {
       ...(publishableKey !== undefined && { publishableKey }),
       userToken,
       ...(apiUrl !== undefined && { apiUrl }),
     };
+    const persist = patchedStore.getState().permissions.persist;
+    const path = window.location.pathname;
+
+    // Backend wins on hydrate. If backend returns nothing, fall back to the
+    // browser cache so reloads don't lose work even when the host hasn't wired
+    // backend save.
     loadOverrides(connection)
       .then((snapshot) => {
-        if (cancelled || !snapshot) return;
-        // Defer one tick so initial Modifiables can register before we filter against the registry.
+        if (cancelled) return;
+        const fallback = !snapshot ? loadClientSnapshot(persist, publishableKey, path) : null;
+        const chosen = snapshot ?? fallback;
+        if (!chosen) return;
         queueMicrotask(() => {
           if (cancelled) return;
-          patchedStore.getState().hydrate(snapshot);
+          patchedStore.getState().hydrate(chosen);
         });
       })
       .catch((err) => {
         console.warn("[Faraday] Failed to load saved overrides:", err);
+        if (cancelled) return;
+        const fallback = loadClientSnapshot(persist, publishableKey, path);
+        if (fallback) {
+          queueMicrotask(() => {
+            if (cancelled) return;
+            patchedStore.getState().hydrate(fallback);
+          });
+        }
       });
+
+    if (persist === "none") {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Mirror persistable slices back to the browser cache on every change,
+    // debounced so a burst of tool calls collapses into one write. Flush
+    // synchronously on tab hide so unsaved work isn't lost on close.
+    let timer: number | null = null;
+    let pending = false;
+    const writeNow = () => {
+      pending = false;
+      if (timer != null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      saveClientSnapshot(persist, publishableKey, path, patchedStore.getState().getPersistableState());
+    };
+    const writeDebounced = () => {
+      pending = true;
+      if (timer != null) clearTimeout(timer);
+      timer = window.setTimeout(writeNow, 50);
+    };
+    const unsubscribe = patchedStore.subscribe((s, prev) => {
+      if (
+        s.overrides !== prev.overrides ||
+        s.insertedComponents !== prev.insertedComponents ||
+        s.containerOrder !== prev.containerOrder ||
+        s.injections !== prev.injections ||
+        s.themeVars !== prev.themeVars ||
+        s.layoutModes !== prev.layoutModes
+      ) {
+        writeDebounced();
+      }
+    });
+    const onHide = () => {
+      if (pending) writeNow();
+    };
+    window.addEventListener("pagehide", onHide);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
+      unsubscribe();
+      window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (pending) writeNow();
+      else if (timer != null) clearTimeout(timer);
     };
   }, [publishableKey, userToken, apiUrl, patchedStore]);
 

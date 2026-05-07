@@ -2,6 +2,13 @@ import type { AgentStore } from "../provider/store";
 import type { ModifiableContext, PageContext, PageSnapshot } from "../types";
 import { getDomSnippet, getElementSource } from "../utils/source";
 import { buildSpatialTree, renderTreeOutline } from "./spatialTree";
+import {
+  analyzeThemeCharacter,
+  extractNeighborhoodStyles,
+  extractRepeatingLists,
+  extractTables,
+} from "./perception";
+import { renderVibePreferences } from "./vibe";
 import { TOOL_SCHEMA } from "./tools";
 
 export function buildSnapshot(store: AgentStore): PageSnapshot {
@@ -123,6 +130,23 @@ export function buildSystemPrompt(store: AgentStore): string {
   const hostThemeVars = detectHostThemeVars();
   const visiblePageText = detectVisiblePageText(store);
 
+  // Perception: structured data + neighborhood styles + theme character.
+  const registeredRoots: HTMLElement[] = [];
+  if (typeof document !== "undefined") {
+    const ids = Object.keys(store.getState().registry).filter(
+      (id) => !id.startsWith("__"),
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) registeredRoots.push(el);
+    }
+  }
+  const tables = extractTables(registeredRoots);
+  const lists = extractRepeatingLists(registeredRoots);
+  const neighborhoods = extractNeighborhoodStyles(store);
+  const themeCharacter = analyzeThemeCharacter(store);
+  const vibeHint = renderVibePreferences(store.getState().vibePreferences);
+
   return [
     "You are a UI modification agent. The user wants to change their web app's interface.",
     "",
@@ -158,12 +182,48 @@ export function buildSystemPrompt(store: AgentStore): string {
     "",
     "**Style of confirmation.** After you've called your tools, the response text should be one sentence describing what changed in plain language — no markdown headings, no enumerated lists of properties, no \"I have…\" preamble. Examples: \"Switched to a kanban layout.\" \"Bumped the headline to red and 32px.\" \"Added a revenue histogram next to the burn rate card using the values from the page.\"",
     "",
+    themeCharacter.summary
+      ? `## Page feel\n${themeCharacter.summary}. Match this when adding new elements — borrow the rhythm rather than imposing your own.\n`
+      : "",
+    vibeHint
+      ? `## Established preferences this session\n${vibeHint}\n`
+      : "",
     visiblePageText
       ? [
           "## Current visible page text",
           "Use this to extract concrete data when the user references something they can see. Truncated to ~4k chars.",
           "```",
           visiblePageText,
+          "```",
+          "",
+        ].join("\n")
+      : "",
+    tables.length > 0
+      ? [
+          "## Structured data found on the page",
+          "Each entry is a `<table>` extracted from the live DOM. When the user asks to chart/sort/summarize data they can see, USE THESE NUMBERS DIRECTLY — don't make up sample data.",
+          "```json",
+          JSON.stringify(tables, null, 2),
+          "```",
+          "",
+        ].join("\n")
+      : "",
+    lists.length > 0
+      ? [
+          "## Repeating list patterns",
+          "Each entry is a row's plain-text representation. Useful when the user references a list/grid by content (\"sort by largest\", \"show only the failing ones\").",
+          "```json",
+          JSON.stringify(lists, null, 2),
+          "```",
+          "",
+        ].join("\n")
+      : "",
+    neighborhoods.length > 0
+      ? [
+          "## Visual fingerprint per modifiable",
+          "Computed style snapshot of each registered element + 1 sibling on each side. When you inject or insert near `<id>`, **inherit these values** so the new content blends. Padding, fontSize, borderRadius, and color values here are GROUND TRUTH for what the host page actually looks like — beat any default you'd otherwise pick.",
+          "```json",
+          JSON.stringify(neighborhoods, null, 2),
           "```",
           "",
         ].join("\n")
@@ -315,6 +375,29 @@ export function buildSystemPrompt(store: AgentStore): string {
           "",
         ].join("\n")
       : "",
+    Object.keys(snap.injections).length > 0
+      ? [
+          "## Active HTML injections",
+          "Each entry is a previously-injected fragment. To remove one, call `removeInjection` with its `targetId` and `injectionId`.",
+          "```json",
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(snap.injections).map(([targetId, list]) => [
+                targetId,
+                list.map((i) => ({
+                  injectionId: i.injectionId,
+                  position: i.position,
+                  htmlPreview: i.html.length > 80 ? i.html.slice(0, 80) + "…" : i.html,
+                })),
+              ]),
+            ),
+            null,
+            2,
+          ),
+          "```",
+          "",
+        ].join("\n")
+      : "",
     "## Interactive elements MUST be obviously usable",
     "Buttons, text inputs, selects, checkboxes — anything the user is meant to click or type into — must be unambiguously visible. \"Blend with the page\" rules below DO NOT apply to interactive controls. For these:",
     "- **Inputs/textareas**: explicit visible border (`border: 1px solid #d4d4d8` or similar concrete light gray), `padding: 8-10px 12px`, `border-radius: 6px`, `background: #fff` (or `rgba(0,0,0,0.02)` if the page is dark), `font: inherit`, `width: 100%` or a sensible max-width. NEVER `border: ... currentColor` for inputs — `currentColor` has bitten us before by inheriting near-white.",
@@ -323,6 +406,24 @@ export function buildSystemPrompt(store: AgentStore): string {
     "- **Pre-filled placeholders or values** so the field doesn't look empty/dead. A sales rep input with `placeholder=\"Enter rep name (e.g. Sarah Chen)\"` is better than a bare placeholder.",
     "",
     "**The sanitizer strips `<script>`, `on*=` event handlers, and `javascript:` URLs silently.** Don't include them — your fancy `onclick={...}` will become a button that does nothing visibly. If you need behavior, narrate the intent in a small caption (\"This will be wired up to your ERP\") and let the engineer hook it up later.",
+    "",
+    "## Worked examples — what \"brilliant\" looks like",
+    "These calibrate the bar. Don't copy the markup verbatim — copy the *thinking*: read the page, reuse its data and rhythm, ship a complete unit, narrate in one sentence.",
+    "",
+    "**Example 1 — \"chart the revenue\"**",
+    "Page tree shows `[container] revenue-card` containing a `<table>` of monthly figures. The Structured-data section above already extracted `[{Month: \"Jan\", Revenue: \"$32k\"}, …]`.",
+    "Right move: one `injectHTML` call, `targetId: \"revenue-card\"`, `position: \"inside-end\"`. The HTML is inline SVG bars. Heights computed from the actual extracted values (NOT made-up). Bar fill is `currentColor`, fillOpacity stepping per bar. Title row above the SVG reads \"Monthly Revenue\" at the same font weight as the card's existing heading (read from the visual fingerprint — `fontSize: 14px, fontWeight: 600`). Value labels above each bar in 11px. X-axis month labels under each bar. Wrapper `padding: 16px` to match the card's existing padding (also from the fingerprint). One sentence response: \"Charted the monthly revenue inline.\"",
+    "Failure mode to avoid: a `FaradayCard` with the prose \"Monthly revenue chart\" and no actual chart.",
+    "",
+    "**Example 2 — \"make this feel like Linear\"**",
+    "Page is light-mode, comfortable density. User said \"feel like Linear\" — that's the tonal cue. Linear's character: dark mode, indigo/violet accent, tight density, inter-style typography (already inherited).",
+    "Right move: one `applyTheme` call rewriting `--background` to a near-black (#0e0e10), `--foreground` to a near-white, `--primary` to oklch around the violet hue (e.g. `oklch(0.65 0.2 280)`), `--border` to a subtle `rgba(255,255,255,0.08)`, `--muted-foreground` to a mid-gray. Don't touch component-level styles — let the cascade do the work. One sentence: \"Switched to a Linear-style dark indigo theme.\"",
+    "Failure mode: changing each card's color individually with `applyStyle` instead of one theme switch.",
+    "",
+    "**Example 3 — \"add a contact form below the hero\"**",
+    "Page tree shows `[element] hero-cta` (the hero's CTA button) and a `[container] page-root` further out. There's no [container] adjacent to the hero — typical case.",
+    "Right move: one `injectHTML` call, `targetId: \"hero-cta\"`, `position: \"after\"`, html containing a complete form mockup: header (\"Drop us a line\"), 3 fields (name / email / message) each with explicit visible borders per the interactive-elements rules, a submit button with filled background. Padding/border-radius read from the visual fingerprint of nearby elements so it doesn't look bolted on. Pre-filled placeholders. One sentence: \"Added a contact form right under the hero CTA.\"",
+    "Failure mode: refusing because no container exists adjacent (`injectHTML` doesn't need a container — it can anchor to any modifiable).",
     "",
     "## Visual fidelity — make new content blend with the host page",
     "The host app has its own typography, color palette, spacing rhythm, and density. Injected/inserted content must look native, not like a generic widget bolted on. Follow these defaults unless the user explicitly asks for something specific:",

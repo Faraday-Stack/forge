@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useStore } from "zustand";
 import { useAgentStore } from "../provider/context";
-import type { ModifiableEntry, ModifiableOverride } from "../types";
+import type { ModifiableEntry, ModifiableOverride, Override } from "../types";
 
 interface UseModifiableOptions {
   text?: string;
@@ -9,6 +10,48 @@ interface UseModifiableOptions {
   tag?: string;
   type?: ModifiableEntry["type"];
   containerId?: string;
+}
+
+/**
+ * Resolve the effective style for an element by layering ancestor `descendantStyle`
+ * overrides under its own `style`. Walks the live DOM ancestors of `id`, looks each
+ * up in the override map, and merges outermost-first so the element's own style wins
+ * on conflict.
+ *
+ * On first paint the live element may not be mounted yet, so we recompute via a
+ * `useLayoutEffect` after mount. One frame may render without the cascade — that's
+ * acceptable, since the no-cascade fallback is the existing behavior.
+ */
+function useResolvedStyle(
+  id: string,
+  overrides: Record<string, Override>,
+): CSSProperties {
+  const [resolved, setResolved] = useState<CSSProperties>(() => overrides[id]?.style ?? {});
+  useLayoutEffect(() => {
+    const own = overrides[id]?.style ?? {};
+    if (typeof document === "undefined") {
+      setResolved(own);
+      return;
+    }
+    const el = document.getElementById(id);
+    if (!el) {
+      setResolved(own);
+      return;
+    }
+    const cascade: CSSProperties[] = [];
+    for (let cur = el.parentElement; cur; cur = cur.parentElement) {
+      const ancestorId = cur.id;
+      if (!ancestorId) continue;
+      const ds = overrides[ancestorId]?.descendantStyle;
+      if (ds) cascade.unshift(ds);
+    }
+    if (cascade.length === 0) {
+      setResolved(own);
+      return;
+    }
+    setResolved(Object.assign({}, ...cascade, own));
+  }, [id, overrides]);
+  return resolved;
 }
 
 /**
@@ -48,11 +91,14 @@ export function useModifiable(
     return () => store.getState().unregister(id);
   }, [id, store]);
 
-  const override = useStore(store, (s) => s.overrides[id]);
+  const overrides = useStore(store, (s) => s.overrides);
+  const override = overrides[id];
+  const resolvedStyle = useResolvedStyle(id, overrides);
 
   return {
     text: override?.text ?? defaults.text ?? "",
-    style: override?.style ?? {},
+    style: resolvedStyle,
     visible: override?.visible ?? defaults.visible ?? true,
+    attributes: override?.attributes ?? {},
   };
 }

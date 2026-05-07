@@ -131,6 +131,8 @@ export async function streamInlineEdit(options: {
 }): Promise<{ applied: boolean; assistantText: string }> {
   const { connection, store, targetId, userMessage, signal } = options;
 
+  store.getState().observeUserMessage(userMessage);
+
   const focusedMessage = targetId
     ? `Change the element with id="${targetId}" only. ` +
       `User says: "${userMessage}". ` +
@@ -204,6 +206,7 @@ export async function streamAgentResponse(
     content: userMessage,
   };
   state.appendMessage(userMsg);
+  state.observeUserMessage(userMessage);
 
   state.appendMessage({
     id: nanoid(),
