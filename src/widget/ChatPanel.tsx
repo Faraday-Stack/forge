@@ -173,6 +173,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   return (
     <div className={styles.panel} role="dialog" aria-label="Faraday UI Agent">
       <div className={styles.panelHeader}>
+        <div className={styles.panelTitle}>
+          <span className={styles.titleDot} aria-hidden />
+          FaradayStack
+        </div>
         <div className={styles.headerActions}>
           <button
             type="button"
@@ -220,11 +224,6 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         role="log"
         aria-live="polite"
       >
-        {messages.length === 0 && (
-          <div className={styles.emptyState}>
-            Ask me to change anything on this page
-          </div>
-        )}
         {messages.map((msg) => (
           <div key={msg.id} className={styles.message} data-role={msg.role}>
             {msg.content}
@@ -246,7 +245,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           value={input}
           onChange={onInput}
           onKeyDown={onKeyDown}
-          placeholder="Ask to change the UI…"
+          placeholder=""
           rows={1}
           aria-label="Message"
           disabled={isStreaming}
